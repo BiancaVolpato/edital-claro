@@ -370,3 +370,88 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   em que a versão sozinha mentiria. Os prompts estão em português porque descrevem termos
   jurídicos brasileiros e são lidos junto com texto em português; os nomes dos campos no
   código seguem em inglês.
+
+## ADR-019: Lei dividida por dispositivo, com a hierarquia preservada
+
+- **Etapa:** 4
+- **Contexto:** Um risco apontado em um edital precisa citar o dispositivo exato da lei
+  ("Art. 67, § 2º"), não um trecho solto. A página do Planalto traz o texto compilado, com
+  redações antigas, vetos e artigos de outras leis citados entre aspas.
+- **Opções:** (a) dividir a lei em blocos de tamanho fixo; (b) um registro por artigo
+  inteiro; (c) um registro por dispositivo (artigo, parágrafo, inciso, alínea), cada um
+  com identificador, dispositivo pai e títulos de capítulo.
+- **Escolha:** Opção (c). O parser (`app/law/parser.py`) lê o HTML oficial e produz 1.437
+  dispositivos, dos quais 1.410 têm conteúdo (os vetados e revogados ficam de fora do
+  índice). Regras para o texto compilado: descarta o que está riscado; quando um
+  dispositivo aparece mais de uma vez, vale a última ocorrência; artigos fora da
+  sequência numérica ou entre aspas são texto do artigo que os cita.
+- **Trade-off:** A citação fica precisa e a hierarquia permite mostrar o caput junto com
+  o inciso. O custo é um parser específico para o formato do Planalto, que precisa ser
+  conferido se a página mudar. Os testes verificam que os 194 artigos (mais o 44-A e o
+  184-A) aparecem uma única vez e conferem o texto de dispositivos conhecidos. Um inciso
+  isolado diz pouco ("IV - prova do atendimento de requisitos previstos em lei
+  especial"), por isso cada dispositivo é indexado junto com o texto dos dispositivos que
+  o contêm.
+
+## ADR-020: Busca híbrida com fusão por posição, termos ponderados por raridade e busca vetorial exata
+
+- **Etapa:** 4
+- **Contexto:** A busca precisa achar o artigo certo tanto para perguntas com o
+  vocabulário da lei quanto para paráfrases. A meta da etapa era recall@5 de 0,8.
+- **Opções:** (a) só vetorial; (b) só full-text do Postgres; (c) as duas, combinadas.
+- **Escolha:** Opção (c), em uma única consulta SQL (`app/law/search.py`):
+  - **Vetorial:** distância de cosseno no pgvector, **sem índice aproximado**. Com 1.410
+    linhas a varredura exata leva milissegundos. O índice HNSW chegou a ser criado e foi
+    removido: depois de uma reindexação ele devolvia menos resultados, porque os
+    candidatos apagados e os de outra lei entram na conta e só são descartados depois.
+  - **Por termos:** cada termo da pergunta (já reduzido ao radical pelo dicionário
+    português do Postgres) recebe um peso pela sua raridade na lei (o IDF do BM25), e o
+    dispositivo soma os pesos dos termos que contém. O ranking nativo (`ts_rank_cd`) foi
+    testado primeiro e descartado: sem noção de raridade, "contrato" e "obra" dominavam.
+  - **Fusão:** reciprocal rank fusion (RRF), que usa só as posições nas duas listas e
+    dispensa calibrar uma distância de cosseno contra uma soma de pesos.
+  - **Diversidade:** no máximo 2 dispositivos do mesmo artigo por resultado.
+- **Números** (10 perguntas, recall@5): híbrida 0,90, só vetorial 0,90, só por termos
+  0,60. A evolução desde a primeira versão (0,70) está em `eval/law_search/README.md`.
+- **Trade-off:** A busca por termos sozinha é fraca com perguntas coloquiais; ela melhora
+  a ordenação (MRR de 0,90 na híbrida contra 0,82 na vetorial), não o recall. Mantive a
+  combinação porque as consultas da análise de riscos (Etapa 5) usarão o vocabulário da
+  lei, caso em que a correspondência de termos é mais forte. O peso por raridade ignora
+  quantas vezes o termo aparece no dispositivo, o que é aceitável porque os dispositivos
+  são curtos. O conjunto de avaliação é pequeno e foi usado também para escolher as
+  mudanças, então o 0,90 pode estar otimista.
+
+## ADR-021: Embeddings da lei em cache versionado no repositório
+
+- **Etapa:** 4
+- **Contexto:** Calcular os embeddings dos 1.410 dispositivos levou 466 s nesta máquina
+  (CPU) e exige baixar cerca de 1 GB de modelo. Repetir isso no CI, no Docker e na demo
+  seria lento e frágil.
+- **Opções:** (a) recalcular sempre; (b) baixar e guardar o modelo em cache no CI;
+  (c) guardar no repositório os vetores já calculados.
+- **Escolha:** Opção (c). `data/law/L14133.embeddings.npz` (2 MB, vetores em float16)
+  guarda o embedding de cada dispositivo, indexado pelo hash do texto. A indexação lê do
+  cache e só carrega o modelo para textos que não estão nele. As 10 perguntas de
+  avaliação têm um cache próprio. Indexar a lei passou a levar 2 s.
+- **Trade-off:** O CI roda o teste de recall com os vetores reais do modelo, sem baixá-lo
+  e de forma determinística. O risco é o cache ficar desatualizado em relação ao texto ou
+  ao modelo; por isso o arquivo registra o modelo que o gerou (um modelo diferente é
+  recusado), e um teste falha se algum dispositivo da lei não estiver no cache. A
+  dimensão do vetor (768) está fixa na coluna do banco: trocar para um modelo de outro
+  tamanho exige migração e reindexação. O texto usado no embedding não inclui os títulos
+  de capítulo, que entram só na busca por termos (medição em `eval/law_search/README.md`).
+
+## ADR-022: PostgreSQL embutido para desenvolver sem Docker
+
+- **Etapa:** 4
+- **Contexto:** pgvector e full-text search só existem no PostgreSQL, e a máquina de
+  desenvolvimento não tem Docker. O ADR-011 previa que os testes desta etapa exigiriam o
+  banco real.
+- **Escolha:** Para desenvolver, usei o pacote `pgserver`, que traz um PostgreSQL com
+  pgvector instalável por `pip`, em um ambiente separado do projeto. Ele não é
+  dependência do projeto: a suíte continua rodando em SQLite quando `RUN_DB_TESTS` não
+  está definido (os testes da busca na lei são pulados) e em PostgreSQL no CI.
+- **Trade-off:** Permitiu medir e corrigir a busca localmente (foi assim que apareceu o
+  problema do índice HNSW). No Windows, o `pgserver` falha se o caminho de instalação tiver
+  acento (caso de `C:\Users\Usuário`); foi instalado em `C:\Users\Public`. O caminho
+  recomendado para rodar o projeto continua sendo o Docker.

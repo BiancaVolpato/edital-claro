@@ -30,6 +30,8 @@ services:
     volumes:
       - uploads:/data/uploads
       - huggingface:/data/huggingface
+      # Official text of the Lei 14.133 and its cached embeddings (read-only).
+      - ./data/law:/data/law:ro
     ports:
       - "8000:8000"
     depends_on:

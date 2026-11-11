@@ -3,9 +3,10 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 3 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
-> campos com IA e confere cada citação contra o texto da página. Ainda não há interface
-> para a análise (Etapa 8) nem números de qualidade (Etapa 9).
+> **Estado atual:** Etapa 4 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
+> campos com IA conferindo cada citação, e tem uma base pesquisável da Lei 14.133/2021
+> (recall@5 de 0,90 em 10 perguntas). Ainda não há análise de riscos (Etapa 5), interface
+> para a análise (Etapa 8) nem números de qualidade da extração (Etapa 9).
 
 ## O problema
 
@@ -34,7 +35,7 @@ um jeito.
 | 1 | Fundação do repositório | Concluída |
 | 2 | Ingestão de PDF | Concluída |
 | 3 | Extração estruturada com citações | Concluída |
-| 4 | Base de conhecimento da Lei 14.133 (RAG) | Pendente |
+| 4 | Base de conhecimento da Lei 14.133 (RAG) | Concluída |
 | 5 | Análise de riscos | Pendente |
 | 6 | Perfil da empresa e aptidão | Pendente |
 | 7 | Integração com o PNCP | Pendente |
@@ -155,6 +156,30 @@ estado:
 | `not_found` | o trecho não está no documento; o campo é marcado para revisão |
 | `too_short` | trecho curto demais para comprovar algo; o campo é marcado para revisão |
 
+## Buscar na Lei 14.133/2021
+
+A lei está dividida em 1.410 dispositivos (artigos, parágrafos, incisos e alíneas), cada
+um com seu identificador ("Art. 67, § 1º") e o capítulo a que pertence. A busca combina
+semelhança de sentido (embeddings) com correspondência de termos.
+
+Com o Docker no ar, a lei já é indexada na subida do backend. Consulte pelo navegador:
+
+```
+http://localhost:8000/law/search?q=prazo para impugnar o edital
+```
+
+| Parâmetro | Significado |
+| --- | --- |
+| `q` | a pergunta ou o tema |
+| `k` | quantos resultados (padrão 5, máximo 20) |
+| `mode` | `hybrid` (padrão), `vector` ou `lexical` |
+
+Em 10 perguntas de teste, o artigo esperado aparece entre os 5 primeiros resultados em 9
+(recall@5 de 0,90). O método, a evolução do número e as limitações estão em
+[eval/law_search/README.md](eval/law_search/README.md), e os resultados de cada pergunta
+em [eval/law_search/RESULTADOS.md](eval/law_search/RESULTADOS.md). A origem do texto da
+lei está em [data/law/README.md](data/law/README.md).
+
 ## Comandos
 
 | Comando | O que faz |
@@ -166,6 +191,8 @@ estado:
 | `just fmt` | Formata o código do backend |
 | `just migrate` | Aplica as migrações do banco |
 | `just analyze ARQUIVO.pdf` | Analisa um edital com o LLM real, sem banco (tem custo) |
+| `just index-law` | Indexa a Lei 14.133 no PostgreSQL |
+| `just eval-law` | Mede o recall@5 da busca na lei e gera o relatório |
 | `just eval` | Roda a avaliação (a implementar na Etapa 9) |
 
 ## Estrutura

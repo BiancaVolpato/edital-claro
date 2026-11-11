@@ -1,0 +1,66 @@
+{
+  "description": "Perguntas de avaliação da busca na Lei 14.133/2021. Cada pergunta foi escrita em linguagem comum, sem copiar o texto da lei, e o artigo esperado foi conferido no texto oficial.",
+  "law": "Lei 14.133/2021",
+  "questions": [
+    {
+      "id": "impugnacao",
+      "question": "Até quando posso impugnar o edital ou pedir esclarecimentos?",
+      "expected_articles": [164],
+      "why": "Art. 164: pedido até 3 dias úteis antes da data de abertura do certame."
+    },
+    {
+      "id": "garantia_contrato",
+      "question": "Qual é o percentual máximo da garantia de execução do contrato em uma obra?",
+      "expected_articles": [98],
+      "why": "Art. 98: até 5% do valor inicial do contrato, podendo chegar a 10%."
+    },
+    {
+      "id": "garantia_proposta",
+      "question": "O órgão pode pedir garantia de proposta maior que 1% do valor estimado?",
+      "expected_articles": [58],
+      "why": "Art. 58, § 1º: a garantia de proposta não pode superar 1% do valor estimado."
+    },
+    {
+      "id": "prazo_propostas",
+      "question": "Quantos dias no mínimo deve haver entre a divulgação do edital e a apresentação das propostas em uma obra?",
+      "expected_articles": [55],
+      "why": "Art. 55: prazos mínimos para apresentação de propostas e lances."
+    },
+    {
+      "id": "atestado_quantitativo",
+      "question": "O edital pode exigir atestado de capacidade técnica com quantidade mínima acima de metade do que será contratado?",
+      "expected_articles": [67],
+      "why": "Art. 67, § 2º: quantidades mínimas de até 50% das parcelas de maior relevância."
+    },
+    {
+      "id": "qualificacao_economica",
+      "question": "Que índices contábeis e documentos podem ser exigidos para comprovar a saúde financeira da empresa?",
+      "expected_articles": [69],
+      "why": "Art. 69: habilitação econômico-financeira, balanço e índices."
+    },
+    {
+      "id": "consorcio",
+      "question": "Empresas podem se juntar em consórcio para participar da licitação?",
+      "expected_articles": [15],
+      "why": "Art. 15: participação de pessoa jurídica em consórcio."
+    },
+    {
+      "id": "criterios_julgamento",
+      "question": "Quais são as formas de escolher a proposta vencedora?",
+      "expected_articles": [33],
+      "why": "Art. 33: critérios de julgamento das propostas."
+    },
+    {
+      "id": "modalidades",
+      "question": "Quais modalidades de licitação existem?",
+      "expected_articles": [28],
+      "why": "Art. 28: pregão, concorrência, concurso, leilão e diálogo competitivo."
+    },
+    {
+      "id": "visita_tecnica",
+      "question": "A prefeitura pode obrigar a empresa a visitar o local da obra antes de participar?",
+      "expected_articles": [63],
+      "why": "Art. 63, §§ 2º a 4º: avaliação prévia do local e declaração substitutiva."
+    }
+  ]
+}

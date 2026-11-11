@@ -51,7 +51,9 @@ def db_engine(
         engine = create_engine(
             "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
         )
-        Base.metadata.create_all(engine)
+        # Tables that need PostgreSQL features (pgvector, full-text search) are left out.
+        portable = [t for t in Base.metadata.sorted_tables if not t.info.get("postgres_only")]
+        Base.metadata.create_all(engine, tables=portable)
 
     monkeypatch.setattr(db_session, "get_engine", lambda: engine)
     monkeypatch.setattr(get_settings(), "storage_dir", tmp_path / "uploads")

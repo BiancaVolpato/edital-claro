@@ -25,3 +25,5 @@ Thumbs.db
 # Local caches and generated data
 data/cache/
 data/uploads/
+# Assets the browser saves next to the law's HTML page; not used.
+data/law/*_files/

@@ -23,4 +23,6 @@ COPY . .
 EXPOSE 8000
 
 # Migrations run on start so "docker compose up" always yields a ready database.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# The law index is rebuilt too (about 2 s, from the cached embeddings). If the law
+# files are not mounted, the API still starts and only the law search is unavailable.
+CMD ["sh", "-c", "alembic upgrade head && (python scripts/index_law.py || echo 'WARNING: law not indexed') && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

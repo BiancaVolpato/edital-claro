@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import analyses, documents, health
+from app.api import analyses, documents, health, law
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import log_requests
@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(documents.router)
     app.include_router(analyses.router)
+    app.include_router(law.router)
     return app
 
 

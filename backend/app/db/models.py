@@ -5,12 +5,15 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    Computed,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -19,7 +22,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -156,3 +159,42 @@ class Analysis(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     document: Mapped[Document] = relationship()
+
+
+# Output size of the embedding model the law index was built with (multilingual-e5-base).
+# Changing EMBEDDING_MODEL to a model with another size requires a migration and re-indexing.
+LAW_EMBEDDING_DIMENSIONS = 768
+
+
+class LawProvision(Base):
+    """One provision of a statute (article, paragraph, inciso, alínea), searchable.
+
+    PostgreSQL-only: it relies on pgvector and on full-text search.
+    """
+
+    __tablename__ = "law_provisions"
+    __table_args__ = (
+        UniqueConstraint("law", "identifier", name="uq_law_provisions_law_identifier"),
+        # No approximate (HNSW/IVFFlat) index on ``embedding`` on purpose: with a few
+        # thousand rows an exact scan takes milliseconds and always returns the true
+        # nearest neighbours, also when filtering by law or right after re-indexing.
+        Index("ix_law_provisions_search", "search", postgresql_using="gin"),
+        {"info": {"postgres_only": True}},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    law: Mapped[str] = mapped_column(String(50))  # e.g. "Lei 14.133/2021"
+    identifier: Mapped[str] = mapped_column(String(100))  # e.g. "Art. 67, § 1º, II"
+    kind: Mapped[str] = mapped_column(String(20))
+    article: Mapped[int] = mapped_column(Integer, index=True)
+    parent: Mapped[str | None] = mapped_column(String(100))
+    position: Mapped[int] = mapped_column(Integer)  # reading order within the law
+    heading: Mapped[str] = mapped_column(Text)  # chapter/section titles
+    text: Mapped[str] = mapped_column(Text)  # the provision's own wording
+    # Own text preceded by its section titles and enclosing provisions; this is
+    # what gets embedded and indexed, so an inciso is searchable by its article's subject.
+    context: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(LAW_EMBEDDING_DIMENSIONS))
+    search: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('portuguese', context)", persisted=True)
+    )

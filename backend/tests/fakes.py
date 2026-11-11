@@ -81,16 +81,16 @@ class FakeEmbedder:
     """Deterministic bag-of-words embedding: texts sharing words get similar vectors."""
 
     model_name = "fake-bag-of-words"
-    _DIMENSIONS = 256
 
-    def __init__(self) -> None:
+    def __init__(self, dimensions: int = 256) -> None:
+        self._dimensions = dimensions
         self.passage_batches: list[int] = []
 
     def _embed(self, texts: list[str]) -> Vectors:
-        vectors = np.zeros((len(texts), self._DIMENSIONS), dtype=np.float32)
+        vectors = np.zeros((len(texts), self._dimensions), dtype=np.float32)
         for row, text in enumerate(texts):
             for word in fold(text).split():
-                bucket = int(hashlib.md5(word.encode()).hexdigest(), 16) % self._DIMENSIONS
+                bucket = int(hashlib.md5(word.encode()).hexdigest(), 16) % self._dimensions
                 vectors[row, bucket] += 1.0
             norm = float(np.linalg.norm(vectors[row]))
             if norm:

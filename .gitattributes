@@ -2,3 +2,7 @@
 * text=auto eol=lf
 *.ico binary
 *.pdf binary
+*.npz binary
+# The law's HTML is kept byte for byte as downloaded (windows-1252, original line
+# endings), so its recorded SHA-256 stays verifiable.
+data/law/*.html binary

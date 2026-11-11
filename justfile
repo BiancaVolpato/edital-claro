@@ -62,6 +62,16 @@ fmt:
     uv run ruff format .
     uv run ruff check --fix .
 
+# Index the Lei 14.133 into PostgreSQL (needs a running, migrated database)
+[working-directory('backend')]
+index-law:
+    uv run python scripts/index_law.py
+
+# Measure recall@5 of the law search and write eval/law_search/RESULTADOS.md
+[working-directory('backend')]
+eval-law:
+    uv run python scripts/eval_law_search.py
+
 # Analyze one edital with the real LLM, no database needed (costs money)
 [working-directory('backend')]
 analyze pdf:
