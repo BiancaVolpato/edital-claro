@@ -1,10 +1,10 @@
-"""Analysis endpoints: start an extraction and read its status and result."""
+"""Analysis endpoints: start an analysis and read its status, fields and risks."""
 
 import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.extraction.schemas import EditalExtraction
 from app.extraction.service import create_analysis, process_analysis
 from app.llm.base import LLMNotConfiguredError
 from app.llm.factory import get_llm_provider
+from app.risks.schemas import Audience, AudienceRisk, RiskReport, for_audience
 
 router = APIRouter(tags=["analyses"])
 
@@ -36,8 +37,11 @@ class AnalysisRead(BaseModel):
     llm_provider: str
     llm_model: str
     embedding_model: str
+    risk_prompt_version: str | None
+    risk_prompt_hash: str | None
     # Result and usage
     result: EditalExtraction | None
+    risks: RiskReport | None
     runs: list[dict[str, Any]]
     citation_counts: dict[str, int]
     warnings: list[str]
@@ -83,3 +87,33 @@ def get_analysis(analysis_id: uuid.UUID, session: SessionDep) -> AnalysisRead:
     if analysis is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Análise não encontrada.")
     return AnalysisRead.model_validate(analysis)
+
+
+class AudienceRisksRead(BaseModel):
+    analysis_id: uuid.UUID
+    audience: Audience
+    risks: list[AudienceRisk]
+
+
+@router.get("/analyses/{analysis_id}/risks")
+def get_risks(
+    analysis_id: uuid.UUID,
+    session: SessionDep,
+    audience: Annotated[
+        Audience,
+        Query(description="licitante: pontos de atenção; orgao: o que pode gerar impugnação"),
+    ] = "licitante",
+) -> AudienceRisksRead:
+    """The risks of a completed analysis, written for one audience, most severe first."""
+    analysis = session.get(Analysis, analysis_id)
+    if analysis is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Análise não encontrada.")
+    if analysis.risks is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Esta análise não tem riscos disponíveis (status: {analysis.status}).",
+        )
+    report = RiskReport.model_validate(analysis.risks)
+    return AudienceRisksRead(
+        analysis_id=analysis.id, audience=audience, risks=for_audience(report, audience)
+    )

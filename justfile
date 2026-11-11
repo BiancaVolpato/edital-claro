@@ -74,8 +74,8 @@ eval-law:
 
 # Analyze one edital with the real LLM, no database needed (costs money)
 [working-directory('backend')]
-analyze pdf:
-    uv run python scripts/analyze.py "{{pdf}}"
+analyze +pdfs:
+    uv run python scripts/analyze.py {{pdfs}}
 
 # Run the evaluation suite against the golden set (implemented in stage 9)
 eval:

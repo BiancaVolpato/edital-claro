@@ -8,17 +8,25 @@ from datetime import UTC, datetime
 
 import numpy as np
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db import session as db_session
 from app.db.models import Analysis, AnalysisStatus, Chunk, Document, Page
 from app.embeddings.base import EmbeddingProvider, Vectors, get_embedding_provider
-from app.extraction.pipeline import run_extraction
+from app.extraction.pipeline import GroupRun, run_extraction
 from app.extraction.prompts import load_prompt_set
 from app.extraction.retrieval import ChunkData, embed_chunks
 from app.llm.base import LLMProvider
 from app.llm.factory import get_llm_provider
+from app.risks.assessment import assess_risks
+from app.risks.law_repository import (
+    DatabaseLawRepository,
+    InMemoryLawRepository,
+    LawRepository,
+)
+from app.risks.prompts import load_risk_prompt_set
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +37,7 @@ def create_analysis(session: Session, document: Document, llm: LLMProvider) -> A
     """Register a pending analysis with its full audit trail."""
     settings = get_settings()
     prompt = load_prompt_set(settings.extraction_prompt_version)
+    risk_prompt = load_risk_prompt_set(settings.risk_prompt_version)
     analysis = Analysis(
         document_id=document.id,
         status=AnalysisStatus.PENDING.value,
@@ -38,7 +47,10 @@ def create_analysis(session: Session, document: Document, llm: LLMProvider) -> A
         llm_provider=llm.name,
         llm_model=llm.model,
         embedding_model=settings.embedding_model,
-        steps_total=len(prompt.groups) + 1,  # +1 for locating the sections
+        risk_prompt_version=risk_prompt.version,
+        risk_prompt_hash=risk_prompt.content_hash,
+        # Locating the sections, one step per extraction group, one per risk topic.
+        steps_total=1 + len(prompt.groups) + len(risk_prompt.topics),
         runs=[],
         citation_counts={},
         warnings=[],
@@ -104,6 +116,18 @@ def _to_chunk_data(chunk: Chunk) -> ChunkData:
     )
 
 
+def get_law_repository(session: Session, embedder: EmbeddingProvider) -> LawRepository:
+    """The indexed law in the database, or the law file when it is not indexed there."""
+    database = DatabaseLawRepository(session, embedder)
+    try:
+        if database.is_indexed():
+            return database
+    except SQLAlchemyError:
+        session.rollback()  # e.g. a database without the law table (tests on SQLite)
+    logger.warning("law not indexed in the database; using the law file in memory")
+    return InMemoryLawRepository(embedder)
+
+
 def _analyze(
     session: Session,
     analysis: Analysis,
@@ -142,28 +166,20 @@ def _analyze(
         analysis.steps_done = 1 + done
         session.commit()
 
+    chunk_data = [_to_chunk_data(chunk) for chunk in chunks]
+    settings = get_settings()
     outcome = run_extraction(
         pages=pages,
-        chunks=[_to_chunk_data(chunk) for chunk in chunks],
+        chunks=chunk_data,
         chunk_vectors=vectors,
         prompt=prompt,
         llm=llm,
         embedder=embedder,
-        max_concurrency=get_settings().llm_max_concurrency,
+        max_concurrency=settings.llm_max_concurrency,
         on_progress=on_progress,
     )
-
-    costs = [run.cost_usd for run in outcome.runs if not run.error]
-    analysis.runs = [asdict(run) for run in outcome.runs]
-    analysis.input_tokens = sum(run.input_tokens for run in outcome.runs)
-    analysis.output_tokens = sum(run.output_tokens for run in outcome.runs)
-    # The total is unknown if any call was served by a model without a known price.
-    analysis.cost_usd = (
-        None if any(cost is None for cost in costs) else round(sum(c for c in costs if c), 6)
-    )
-    analysis.latency_ms = round((time.perf_counter() - started) * 1000, 1)
-    analysis.citation_counts = outcome.citation_counts
-    analysis.warnings = [
+    runs = list(outcome.runs)
+    warnings = [
         f"O grupo '{run.group}' não pôde ser extraído: {run.error}"
         for run in outcome.runs
         if run.error
@@ -171,11 +187,49 @@ def _analyze(
 
     if len(outcome.failed_groups) == len(outcome.runs):
         # Nothing was extracted: do not present an empty result as an analysis.
+        _record_usage(analysis, runs, warnings, started)
         _finish(session, analysis, AnalysisStatus.FAILED, outcome.runs[0].error)
         logger.warning("analysis failed: every call failed", extra=log_context)
         return
 
     analysis.result = outcome.extraction.model_dump(mode="json")
+    analysis.citation_counts = outcome.citation_counts
+    session.commit()
+
+    # Risks build on the extraction. A failure here keeps the extracted fields.
+    risk_steps_start = 1 + len(prompt.groups)
+
+    def on_risk_progress(done: int, total: int) -> None:
+        analysis.steps_done = risk_steps_start + done
+        session.commit()
+
+    risk_count = 0
+    if analysis.risk_prompt_version:
+        try:
+            risk_outcome = assess_risks(
+                extraction=outcome.extraction,
+                pages=pages,
+                chunks=chunk_data,
+                chunk_vectors=vectors,
+                law=get_law_repository(session, embedder),
+                prompt=load_risk_prompt_set(analysis.risk_prompt_version),
+                llm=llm,
+                embedder=embedder,
+                max_concurrency=settings.llm_max_concurrency,
+                on_progress=on_risk_progress,
+            )
+        except Exception:
+            session.rollback()
+            logger.exception("risk analysis failed", extra=log_context)
+            warnings.append("A análise de riscos falhou; os campos extraídos foram mantidos.")
+        else:
+            runs += risk_outcome.runs
+            warnings += risk_outcome.report.warnings
+            analysis.risks = risk_outcome.report.model_dump(mode="json")
+            risk_count = len(risk_outcome.report.risks)
+
+    analysis.steps_done = analysis.steps_total
+    _record_usage(analysis, runs, warnings, started)
     _finish(session, analysis, AnalysisStatus.COMPLETED, None)
     logger.info(
         "analysis completed",
@@ -183,12 +237,31 @@ def _analyze(
             **log_context,
             "prompt_version": analysis.prompt_version,
             "prompt_hash": analysis.prompt_hash,
+            "risk_prompt_version": analysis.risk_prompt_version,
+            "risk_prompt_hash": analysis.risk_prompt_hash,
             "llm_model": analysis.llm_model,
             "input_tokens": analysis.input_tokens,
             "output_tokens": analysis.output_tokens,
             "cost_usd": analysis.cost_usd,
             "latency_ms": analysis.latency_ms,
             "citations": analysis.citation_counts,
-            "failed_groups": outcome.failed_groups,
+            "risks": risk_count,
+            "failed_calls": [run.group for run in runs if run.error],
         },
     )
+
+
+def _record_usage(
+    analysis: Analysis, runs: list[GroupRun], warnings: list[str], started: float
+) -> None:
+    """Store the per-call records and their totals on the analysis."""
+    costs = [run.cost_usd for run in runs if not run.error]
+    analysis.runs = [asdict(run) for run in runs]
+    analysis.input_tokens = sum(run.input_tokens for run in runs)
+    analysis.output_tokens = sum(run.output_tokens for run in runs)
+    # The total is unknown if any call was served by a model without a known price.
+    analysis.cost_usd = (
+        None if any(cost is None for cost in costs) else round(sum(c for c in costs if c), 6)
+    )
+    analysis.latency_ms = round((time.perf_counter() - started) * 1000, 1)
+    analysis.warnings = warnings

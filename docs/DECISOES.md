@@ -455,3 +455,91 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   problema do índice HNSW). No Windows, o `pgserver` falha se o caminho de instalação tiver
   acento (caso de `C:\Users\Usuário`); foi instalado em `C:\Users\Public`. O caminho
   recomendado para rodar o projeto continua sendo o Docker.
+- **Atualização (Etapa 5):** rodar a suíte com `RUN_DB_TESTS=1` contra o banco de
+  desenvolvimento apagou os documentos e o índice da lei, porque os testes limpam essas
+  tabelas ao terminar. Agora a suíte se recusa a rodar se o banco já tiver documentos ou a
+  lei indexada; os testes locais usam um banco separado (`edital_test`).
+
+## ADR-023: Riscos em duas camadas: regras para o objetivo, LLM para o interpretativo
+
+- **Etapa:** 5
+- **Contexto:** Parte dos problemas de um edital é verificável por conta (um prazo menor que
+  o mínimo, uma garantia acima do teto); outra parte depende de interpretação (uma
+  exigência de atestado pode ou não restringir a competição).
+- **Opções:** (a) pedir tudo ao LLM; (b) só regras; (c) regras para o que a lei expressa em
+  números, datas ou sim/não, e LLM para o restante.
+- **Escolha:** Opção (c). Oito regras em `app/risks/rules.py`:
+
+  | Regra | Dispositivo |
+  | --- | --- |
+  | Prazo entre o edital e a abertura menor que o mínimo da modalidade, ou no limite | Art. 55 e Art. 183 |
+  | Abertura com data anterior à do edital | Art. 55, § 1º |
+  | Datas de abertura diferentes no mesmo edital | Art. 55, § 1º |
+  | Prazo de impugnação ou de esclarecimentos com antecedência maior que 3 dias úteis | Art. 164 |
+  | Garantia de proposta acima de 1% | Art. 58, § 1º |
+  | Garantia contratual acima de 5% (pede justificativa) ou acima do teto | Art. 98, Art. 99 e Art. 6º, XXII |
+  | Capital ou patrimônio líquido mínimo acima de 10% | Art. 69, § 4º |
+  | Visita técnica obrigatória sem declaração substitutiva; vedação a consórcio | Art. 63, §§ 2º e 3º; Art. 15 |
+
+  A camada de LLM analisa três temas (qualificação técnica, qualificação
+  econômico-financeira e restrições à competição). Para cada tema, busca dispositivos na
+  lei e trechos no edital, e o prompt declara fora do escopo o que as regras já verificam.
+- **Por que regras e não IA no que é objetivo:** a resposta é a mesma em toda execução,
+  não custa tokens, pode ser testada caso a caso (47 testes unitários) e a explicação é
+  exata ("há 6 dias úteis; o mínimo é 10"). Um LLM fazendo contagem de dias úteis erraria
+  às vezes, e o erro seria difícil de detectar. Pela mesma razão, os limites legais
+  ficam como constantes no código com o dispositivo ao lado, mas o texto da lei citado no
+  risco vem sempre do índice, nunca digitado.
+- **Trade-off:** As regras só disparam sobre campos extraídos com citação confirmada; um
+  campo sem prova não alimenta regra nenhuma. Isso evita riscos falsos, mas faz a camada
+  de regras depender da qualidade da extração. Limites conhecidos: a contagem de dias
+  úteis não conhece feriados (por isso existe o aviso "no limite"); a regra do prazo não
+  sabe se a obra é comum ou especial, então aplica o mínimo de 10 dias úteis e sinaliza
+  quando o prazo só basta para obra comum; a busca por datas no texto só lê datas na mesma
+  linha do rótulo, e por isso também compara com a data de abertura extraída.
+
+## ADR-024: Todo risco precisa de citação validada do edital e de dispositivo recuperado
+
+- **Etapa:** 5
+- **Contexto:** Um risco sem fundamento é pior que nenhum: induz uma impugnação inútil ou
+  assusta o licitante sem motivo.
+- **Escolha:** Um risco só é reportado com as duas pontas ancoradas:
+  - o trecho do edital passa pela mesma validação de citações da extração (ADR-012);
+  - cada dispositivo citado precisa estar entre os que a busca recuperou e foram mostrados
+    ao modelo. O texto do dispositivo no resultado vem do índice da lei, não do modelo.
+
+  Achados do LLM que falham em qualquer ponta são descartados e listados em
+  `discarded` com o motivo, em vez de sumirem. Uma regra cuja fundamentação não é
+  encontrada no índice também é omitida, com aviso.
+- **Trade-off:** O modelo não pode citar jurisprudência, súmulas do TCU ou outras leis,
+  mesmo quando seriam pertinentes: só o que foi recuperado da Lei 14.133. Isso limita a
+  riqueza da fundamentação, mas garante que todo artigo citado existe e diz o que o
+  resultado mostra. Dispositivos muito longos (o Art. 178 tem mais de 5 mil caracteres)
+  são encurtados no prompt, e o texto completo fica no resultado.
+
+## ADR-025: Uma análise, dois públicos
+
+- **Etapa:** 5
+- **Contexto:** O mesmo achado interessa de formas diferentes ao licitante ("atenção a
+  isto") e ao órgão ("isto pode gerar impugnação").
+- **Escolha:** Cada risco tem `bidder_note` e `agency_note`, e uma nota nula significa que o
+  risco não interessa àquele público. `GET /analyses/{id}/risks?audience=licitante|orgao`
+  devolve a lista já filtrada e com a mensagem de cada público. As regras escrevem as duas
+  notas à mão; o LLM preenche as duas no mesmo pedido.
+- **Trade-off:** Uma única análise serve os dois públicos, sem custo extra. A visão do órgão
+  não deve conter orientação estratégica para o licitante, e vice-versa; isso depende do
+  prompt e não é verificado automaticamente.
+
+## ADR-026: Extração de texto sem o recorte padrão do PyMuPDF
+
+- **Etapa:** 5 (revisa o ADR-007)
+- **Contexto:** Ao incluir novos editais de exemplo, o texto de Palhoça aparecia cortado no
+  meio das palavras. A extração padrão do PyMuPDF descartava 53% dos caracteres desse
+  arquivo, todos visíveis quando a página é renderizada.
+- **Escolha:** Extrair sem o recorte padrão pela "media box" e limitar ao retângulo da
+  página (`clip=page.rect`). Nos cinco editais, isso recupera todo o texto de Palhoça
+  (de 89 mil para 191 mil caracteres) e só muda espaços em branco nos demais.
+- **Trade-off:** Texto colocado fora da área visível da página continua excluído. Um teste
+  de regressão confere um trecho da página 9 de Palhoça que antes se perdia. O defeito
+  existia desde a Etapa 2 e passou porque os dois editais de exemplo da época não o
+  tinham: mais editais de teste, de órgãos diferentes, pegam esse tipo de problema.

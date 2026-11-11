@@ -1,0 +1,100 @@
+# Topics of the interpretive (LLM) risk analysis.
+#
+# Each topic is one LLM call. Its context has two parts:
+#   - provisions of the Lei 14.133/2021 retrieved with `law_queries` (`law_k` each);
+#   - excerpts of the edital selected with `queries`/`keywords`, as in the extraction.
+#
+# Objective checks (deadlines, guarantee percentages, minimum net worth, site
+# visit, consortium ban) are deterministic rules in app/risks/rules.py and are
+# listed as out of scope in each task so the model does not duplicate them.
+
+[topics.technical_qualification]
+queries = [
+  "qualificação técnica: atestados de capacidade técnica, registro no CREA ou CAU, responsável técnico",
+  "quantitativos mínimos exigidos nos atestados e parcelas de maior relevância",
+]
+keywords = [
+  "habilitacao", "qualificacao tecnica", "capacidade tecnic", "atestado", "acervo",
+  "crea", "cau", "responsavel tecnico", "parcelas? de maior relevancia", "quantitativ",
+  "vinculo", "quadro permanente",
+]
+top_k = 10
+law_queries = [
+  "documentação de qualificação técnico-profissional e técnico-operacional, atestados",
+  "exigência de atestados restrita às parcelas de maior relevância, quantidades mínimas, limitações de tempo e de local",
+  "vedação a cláusulas que restrinjam o caráter competitivo do processo licitatório",
+]
+law_k = 6
+task = """
+Tema: exigências de qualificação técnica.
+
+Verifique se as exigências de habilitação técnica vão além do que a lei admite ou \
+restringem a competição. Exemplos do que procurar: quantitativo mínimo de atestado acima \
+do limite legal; atestados limitados a um período ou a um local; exigência de atestado \
+para parcela que o edital não indica como de maior relevância; número mínimo de \
+atestados ou vedação a somar atestados; exigência de que o profissional pertença ao \
+quadro permanente da empresa na data da licitação; exigências sem relação com o objeto.
+
+Fora do escopo: garantias, prazos, visita técnica, consórcio e qualificação \
+econômico-financeira.
+"""
+
+[topics.economic_qualification]
+queries = [
+  "qualificação econômico-financeira: balanço patrimonial, índices contábeis, capital social ou patrimônio líquido mínimo",
+  "certidão negativa de falência e demonstrações contábeis exigidas",
+]
+keywords = [
+  "habilitacao", "qualificacao economic", "balanco patrimonial", "liquidez", "indices?",
+  "patrimonio liquido", "capital (social )?minimo", "falencia", "faturamento", "endividamento",
+]
+top_k = 8
+law_queries = [
+  "habilitação econômico-financeira: balanço patrimonial, índices econômicos, certidão negativa de falência",
+  "vedação à exigência de valores mínimos de faturamento anterior e de índices de rentabilidade ou lucratividade",
+  "exigência de capital mínimo ou de patrimônio líquido mínimo",
+]
+law_k = 6
+task = """
+Tema: exigências de qualificação econômico-financeira.
+
+Verifique se as exigências econômico-financeiras vão além do que a lei admite. Exemplos \
+do que procurar: exigência de faturamento mínimo anterior; índices de rentabilidade ou \
+lucratividade; índices contábeis sem valores usuais ou sem justificativa; documentos \
+contábeis além dos previstos em lei; exigências cumulativas que a lei não admite.
+
+Fora do escopo: o percentual de capital ou patrimônio líquido mínimo, garantias, prazos, \
+visita técnica, consórcio e qualificação técnica.
+"""
+
+[topics.competition]
+queries = [
+  "condições de participação e vedações à participação na licitação",
+  "exigências de marca, de localização da empresa, de sede ou de registro local",
+  "documentos de habilitação exigidos dos licitantes",
+]
+keywords = [
+  "participacao", "nao poderao participar", "vedad", "marca", "sede", "domicilio",
+  "cadastr", "habilitacao", "declarac", "alvara", "licenca",
+]
+top_k = 10
+law_queries = [
+  "vedação ao agente público de admitir cláusulas que restrinjam o caráter competitivo ou estabeleçam preferências em razão da sede ou domicílio dos licitantes",
+  "quem não pode disputar a licitação ou participar da execução do contrato",
+  "documentação que pode ser exigida para a habilitação dos licitantes",
+  "indicação de marca ou modelo",
+]
+law_k = 5
+task = """
+Tema: restrições à participação e à competição.
+
+Verifique se o edital traz condições de participação ou exigências de habilitação que a \
+lei não prevê ou que favoreçam ou excluam empresas sem motivo ligado ao objeto. Exemplos \
+do que procurar: exigência de sede, filial ou registro no município ou no estado; \
+preferência por empresa local fora das hipóteses legais; exigência de marca; exigência \
+de documento que não consta do rol legal de habilitação; proibições de participação que \
+a lei não estabelece.
+
+Fora do escopo: qualificação técnica, qualificação econômico-financeira, garantias, \
+prazos, visita técnica e consórcio.
+"""

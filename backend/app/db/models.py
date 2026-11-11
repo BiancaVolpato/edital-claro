@@ -144,9 +144,13 @@ class Analysis(Base):
     llm_provider: Mapped[str] = mapped_column(String(50))
     llm_model: Mapped[str] = mapped_column(String(100))
     embedding_model: Mapped[str] = mapped_column(String(200))
+    # Nullable: analyses created before the risk analysis existed have none.
+    risk_prompt_version: Mapped[str | None] = mapped_column(String(100))
+    risk_prompt_hash: Mapped[str | None] = mapped_column(String(64))
 
-    # Result (EditalExtraction as JSON) and per-call usage records.
+    # Result (EditalExtraction as JSON), risks (RiskReport as JSON) and per-call usage.
     result: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
+    risks: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
     runs: Mapped[list[dict[str, Any]]] = mapped_column(JsonType, default=list)
     citation_counts: Mapped[dict[str, int]] = mapped_column(JsonType, default=dict)
     warnings: Mapped[list[str]] = mapped_column(JsonType, default=list)

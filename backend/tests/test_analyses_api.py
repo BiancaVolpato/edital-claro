@@ -10,10 +10,15 @@ from app.db.models import Chunk, Document, DocumentSource, DocumentStatus
 from app.extraction.prompts import load_prompt_set
 from app.extraction.schemas import EditalExtraction
 from app.llm.base import LLMNotConfiguredError
-from tests.fakes import FailingLLM, FakeEmbedder, FakeLLM, found
+from app.risks.prompts import load_risk_prompt_set
+from tests.fakes import FailingLLM, FakeEmbedder, FakeLawRepository, FakeLLM, found
 
 PDF = "application/pdf"
 GROUPS = len(load_prompt_set("extraction/v1").groups)
+TOPICS = len(load_risk_prompt_set("risks/v1").topics)
+CALLS = GROUPS + TOPICS
+TECHNICAL_TASK = "Tema: exigências de qualificação técnica."
+LAURO_MULLER_ATTESTATION = "não serão permitidos atestados da própria empresa ou mesmo grupo"
 
 # Answers with real quotes from the Lauro Müller edital, plus one hallucination.
 LAURO_MULLER_ANSWERS: dict[str, Any] = {
@@ -49,6 +54,38 @@ LAURO_MULLER_ANSWERS: dict[str, Any] = {
             "A contratada prestará garantia de 5% do valor do contrato",
         ),
     },
+    # One risk with a real quote (page 7) and one whose quote is invented.
+    "RiskFindings": lambda user: (
+        {
+            "risks": [
+                {
+                    "type": "vedacao_a_atestado_do_mesmo_grupo",
+                    "severity": "baixa",
+                    "title": "Vedação a atestados emitidos pelo mesmo grupo",
+                    "description": "O edital veda atestados do mesmo grupo econômico.",
+                    "bidder_note": "Use atestados emitidos por terceiros.",
+                    "agency_note": None,
+                    "citation": {"page": 7, "quote": LAURO_MULLER_ATTESTATION},
+                    "legal_basis": ["Art. 67, § 1º"],
+                },
+                {
+                    "type": "inventado",
+                    "severity": "alta",
+                    "title": "Exigência inventada",
+                    "description": "Não existe.",
+                    "bidder_note": "x",
+                    "agency_note": "y",
+                    "citation": {
+                        "page": 7,
+                        "quote": "exigência de 3 atestados de obras no exterior",
+                    },
+                    "legal_basis": ["Art. 67, § 1º"],
+                },
+            ]
+        }
+        if TECHNICAL_TASK in user
+        else {}
+    ),
 }
 
 
@@ -57,6 +94,12 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeLLM, FakeEmbedder]:
     llm, embedder = FakeLLM(LAURO_MULLER_ANSWERS), FakeEmbedder()
     monkeypatch.setattr("app.api.analyses.get_llm_provider", lambda: llm)
     monkeypatch.setattr("app.extraction.service.get_embedding_provider", lambda: embedder)
+    monkeypatch.setattr(
+        "app.extraction.service.get_law_repository",
+        lambda session, embedder: FakeLawRepository(
+            search_results=["Art. 67, § 1º", "Art. 67, § 2º"]
+        ),
+    )
     return llm, embedder
 
 
@@ -80,7 +123,7 @@ def test_analysis_of_a_real_edital_returns_fields_citations_and_cost(
     analysis = client.get(f"/analyses/{started.json()['id']}").json()
     assert analysis["status"] == "completed"
     assert analysis["error"] is None
-    assert (analysis["steps_done"], analysis["steps_total"]) == (GROUPS + 1, GROUPS + 1)
+    assert (analysis["steps_done"], analysis["steps_total"]) == (CALLS + 1, CALLS + 1)
 
     # The result is a valid EditalExtraction.
     extraction = EditalExtraction.model_validate(analysis["result"])
@@ -105,11 +148,13 @@ def test_analysis_of_a_real_edital_returns_fields_citations_and_cost(
     assert (hallucinated.confidence, hallucinated.needs_review) == (0.2, True)
 
     # Usage, cost and latency are part of the result.
-    assert analysis["input_tokens"] == GROUPS * 1000
-    assert analysis["output_tokens"] == GROUPS * 200
-    assert analysis["cost_usd"] == pytest.approx(GROUPS * 0.008)
+    # Usage covers the extraction calls and the risk calls.
+    assert analysis["input_tokens"] == CALLS * 1000
+    assert analysis["output_tokens"] == CALLS * 200
+    assert analysis["cost_usd"] == pytest.approx(CALLS * 0.008)
     assert analysis["latency_ms"] > 0
-    assert len(analysis["runs"]) == GROUPS
+    assert len(analysis["runs"]) == CALLS
+    assert analysis["runs"][-1]["group"].startswith("risk:")
     assert analysis["runs"][0]["chunk_indexes"]
 
     # Audit trail.
@@ -121,6 +166,18 @@ def test_analysis_of_a_real_edital_returns_fields_citations_and_cost(
     )
     assert (analysis["llm_provider"], analysis["llm_model"]) == ("fake", "claude-opus-5-5")
     assert analysis["embedding_model"] == "intfloat/multilingual-e5-base"
+    risk_prompt = load_risk_prompt_set("risks/v1")
+    assert (analysis["risk_prompt_version"], analysis["risk_prompt_hash"]) == (
+        risk_prompt.version,
+        risk_prompt.content_hash,
+    )
+
+    # Risks: the grounded one is reported, the invented one is discarded.
+    risks = analysis["risks"]
+    assert [r["type"] for r in risks["risks"]] == ["vedacao_a_atestado_do_mesmo_grupo"]
+    assert risks["risks"][0]["citations"][0]["status"] == "valid"
+    assert risks["risks"][0]["legal_basis"][0]["citation"] == "Lei 14.133/2021, Art. 67, § 1º"
+    assert [d["title"] for d in risks["discarded"]] == ["Exigência inventada"]
     assert analysis["warnings"] == []
 
 
@@ -203,3 +260,57 @@ def test_missing_api_key_is_reported_as_service_unavailable(
 
     assert response.status_code == 503
     assert "chave da API" in response.json()["detail"]
+
+
+def test_risks_are_served_per_audience(
+    client: TestClient, document_id: str, fakes: tuple[FakeLLM, FakeEmbedder]
+) -> None:
+    analysis_id = client.post(f"/documents/{document_id}/analyze").json()["id"]
+
+    bidder = client.get(f"/analyses/{analysis_id}/risks").json()
+    agency = client.get(f"/analyses/{analysis_id}/risks", params={"audience": "orgao"}).json()
+
+    assert bidder["audience"] == "licitante"
+    assert [r["message"] for r in bidder["risks"]] == ["Use atestados emitidos por terceiros."]
+    # The finding has no note for the agency, so the agency view leaves it out.
+    assert agency["risks"] == []
+    assert client.get(f"/analyses/{analysis_id}/risks", params={"audience": "x"}).status_code == 422
+    assert client.get(f"/analyses/{uuid.uuid4()}/risks").status_code == 404
+
+
+def test_a_failed_risk_analysis_keeps_the_extracted_fields(
+    client: TestClient,
+    document_id: str,
+    fakes: tuple[FakeLLM, FakeEmbedder],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_law(session: Session, embedder: FakeEmbedder) -> FakeLawRepository:
+        raise RuntimeError("law index unavailable")
+
+    monkeypatch.setattr("app.extraction.service.get_law_repository", broken_law)
+
+    analysis_id = client.post(f"/documents/{document_id}/analyze").json()["id"]
+    analysis = client.get(f"/analyses/{analysis_id}").json()
+
+    assert analysis["status"] == "completed"
+    assert analysis["result"]["estimated_value"]["value"] == 60296.85
+    assert analysis["risks"] is None
+    assert any("análise de riscos falhou" in w for w in analysis["warnings"])
+    assert client.get(f"/analyses/{analysis_id}/risks").status_code == 409
+
+
+def test_without_the_law_in_the_database_the_law_file_is_used(
+    db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.extraction.service import get_law_repository
+    from app.risks.law_repository import DatabaseLawRepository, InMemoryLawRepository
+
+    monkeypatch.setattr(DatabaseLawRepository, "is_indexed", lambda self: False)
+
+    with Session(db_engine) as session:
+        repository = get_law_repository(session, FakeEmbedder(768))
+
+    assert isinstance(repository, InMemoryLawRepository)
+    found_provision = repository.get("Art. 58, § 1º")
+    assert found_provision is not None
+    assert "1% (um por cento)" in found_provision.text

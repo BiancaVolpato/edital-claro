@@ -70,6 +70,25 @@ Para gerar de novo, a partir da pasta `backend/`:
 uv run python ../data/samples/build_ocr_sample.py
 ```
 
+### Editais adicionados na Etapa 5
+
+Mesma busca e mesma data de acesso (11/11/2026); todos de pavimentação, para ter cinco
+editais de órgãos diferentes na verificação da análise de riscos.
+
+| Arquivo | Órgão | Contratação | Nº de controle PNCP | Páginas | SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| `planalto_alegre_cce_63_2026.pdf` | Município de Planalto Alegre (CNPJ 95.990.255/0001-55) | Concorrência Eletrônica nº 63/2026, pavimentação com pedras irregulares | `95990255000155-1-000065/2026` | 58 | `a738205e82062be35cd637442f58450dd7af279696047d44cd9f2124dea4aac0` |
+| `witmarsum_cce_4_2026.pdf` | Município de Witmarsum (CNPJ 83.102.442/0001-76) | Concorrência Eletrônica nº 4/2026, pavimentação asfáltica | `83102442000176-1-000156/2026` | 33 | `bff66886aa7958a0011431aa6668972f6131f90d977b47cf6b51d64d36f501ee` |
+| `palhoca_cce_241_2026.pdf` | Município de Palhoça (CNPJ 82.892.316/0001-08) | Concorrência nº 241/2026, repavimentação com lajotas ou paver | `82892316000108-1-000324/2026` | 34 | `f46c88c576cca2131bc954fe2aff86f88d6de55fb23e9dfd5faafc56471b9989` |
+
+URLs dos arquivos, todos o documento 1 da contratação:
+
+- <https://pncp.gov.br/pncp-api/v1/orgaos/95990255000155/compras/2026/65/arquivos/1>
+- <https://pncp.gov.br/pncp-api/v1/orgaos/83102442000176/compras/2026/156/arquivos/1>
+- <https://pncp.gov.br/pncp-api/v1/orgaos/82892316000108/compras/2026/324/arquivos/1>
+
+O de Palhoça revelou um defeito na extração de texto (ADR-026 em `docs/DECISOES.md`).
+
 ## Uso
 
 Os editais são documentos públicos, publicados pelos próprios órgãos no PNCP. Estão aqui

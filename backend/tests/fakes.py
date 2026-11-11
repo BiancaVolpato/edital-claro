@@ -10,7 +10,10 @@ from pydantic import BaseModel
 
 from app.embeddings.base import Vectors
 from app.extraction.prompts import fold
+from app.law.index import LAW_14133_FILE
+from app.law.parser import parse_law
 from app.llm.base import LLMError, LLMResult
+from app.risks.schemas import LegalBasis
 
 NOT_FOUND: dict[str, Any] = {"value": None, "citations": [], "confidence": "alta"}
 
@@ -103,3 +106,42 @@ class FakeEmbedder:
 
     def embed_queries(self, texts: list[str]) -> Vectors:
         return self._embed(texts)
+
+
+class FakeLawRepository:
+    """The real text of the Lei 14.133, searched by shared words (no embeddings).
+
+    ``only`` restricts it to some provisions, to test what happens when a
+    provision a rule needs is missing from the index. ``search_results`` fixes
+    what every search returns, so a test controls the retrieved provisions.
+    """
+
+    def __init__(
+        self, only: set[str] | None = None, search_results: list[str] | None = None
+    ) -> None:
+        self._search_results = search_results
+        self._texts = {
+            p.identifier: p.text
+            for p in parse_law(LAW_14133_FILE.read_bytes())
+            if p.has_content and (only is None or p.identifier in only)
+        }
+        self.queries: list[str] = []
+
+    def get(self, identifier: str) -> LegalBasis | None:
+        text = self._texts.get(identifier)
+        if text is None:
+            return None
+        return LegalBasis(
+            citation=f"Lei 14.133/2021, {identifier}", identifier=identifier, text=text
+        )
+
+    def search(self, query: str, k: int) -> list[LegalBasis]:
+        self.queries.append(query)
+        if self._search_results is not None:
+            return [found for i in self._search_results[:k] if (found := self.get(i))]
+        words = {word for word in fold(query).split() if len(word) > 3}
+        scored = sorted(
+            self._texts,
+            key=lambda identifier: -len(words & set(fold(self._texts[identifier]).split())),
+        )
+        return [found for identifier in scored[:k] if (found := self.get(identifier))]

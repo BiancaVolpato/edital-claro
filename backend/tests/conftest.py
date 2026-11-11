@@ -6,13 +6,13 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, delete
+from sqlalchemy import Engine, create_engine, delete, func, select
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
 from app.db import session as db_session
 from app.db.base import Base
-from app.db.models import Document
+from app.db.models import Document, LawProvision
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -36,6 +36,22 @@ def _postgres_engine() -> Iterator[Engine | None]:
         return
     engine = create_engine(get_settings().database_url)
     command.upgrade(alembic_config(), "head")
+    # Tests delete every document and the law index when they finish. Refuse to
+    # run against a database that already holds data (e.g. the development one).
+    with engine.connect() as connection:
+        existing = {
+            model.__tablename__: connection.execute(
+                select(func.count()).select_from(model)
+            ).scalar()
+            for model in (Document, LawProvision)
+        }
+    if any(existing.values()):
+        engine.dispose()
+        pytest.exit(
+            f"The database in DATABASE_URL already holds data ({existing}) that the tests "
+            "would delete. Point DATABASE_URL to an empty database used only for tests.",
+            returncode=2,
+        )
     yield engine
     engine.dispose()
 

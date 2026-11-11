@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     embedding_model: str = "intfloat/multilingual-e5-base"
     # Versioned prompt set (a folder under backend/prompts/).
     extraction_prompt_version: str = "extraction/v1"
+    # Versioned prompt set of the interpretive risk analysis.
+    risk_prompt_version: str = "risks/v1"
 
 
 @lru_cache

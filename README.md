@@ -3,10 +3,10 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 4 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
-> campos com IA conferindo cada citação, e tem uma base pesquisável da Lei 14.133/2021
-> (recall@5 de 0,90 em 10 perguntas). Ainda não há análise de riscos (Etapa 5), interface
-> para a análise (Etapa 8) nem números de qualidade da extração (Etapa 9).
+> **Estado atual:** Etapa 5 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
+> campos com IA conferindo cada citação, e aponta riscos com fundamentação na Lei
+> 14.133/2021, cada um com o trecho do edital e o artigo da lei. Ainda não há interface
+> para a análise (Etapa 8) nem números de qualidade (Etapa 9).
 
 ## O problema
 
@@ -36,7 +36,7 @@ um jeito.
 | 2 | Ingestão de PDF | Concluída |
 | 3 | Extração estruturada com citações | Concluída |
 | 4 | Base de conhecimento da Lei 14.133 (RAG) | Concluída |
-| 5 | Análise de riscos | Pendente |
+| 5 | Análise de riscos | Concluída |
 | 6 | Perfil da empresa e aptidão | Pendente |
 | 7 | Integração com o PNCP | Pendente |
 | 8 | Frontend | Pendente |
@@ -133,9 +133,17 @@ ANTHROPIC_API_KEY=sua-chave
 just analyze ../data/samples/lauro_muller_cc_233_2026.pdf
 ```
 
-O comando mostra cada campo com valor, confiança e páginas citadas, e no fim o total de
-citações por estado, os tokens e o custo estimado. Na primeira execução ele baixa o
-modelo de embeddings (cerca de 1 GB).
+O comando mostra cada campo com valor, confiança e páginas citadas, os riscos
+encontrados e, no fim, o total de citações por estado, os tokens e o custo estimado. Na
+primeira execução ele baixa o modelo de embeddings (cerca de 1 GB).
+
+Para rodar todos os testes com PostgreSQL, use um banco vazio só para testes: a suíte
+apaga documentos e o índice da lei ao terminar, e por isso se recusa a rodar num banco
+que já tenha dados.
+
+```bash
+RUN_DB_TESTS=1 DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/edital_test just test
+```
 
 **Com Docker**, pela API: depois de enviar o edital (seção anterior), inicie a análise e
 consulte o resultado:
@@ -155,6 +163,37 @@ estado:
 | `wrong_page` | o trecho existe, mas em outra página (a página é corrigida) |
 | `not_found` | o trecho não está no documento; o campo é marcado para revisão |
 | `too_short` | trecho curto demais para comprovar algo; o campo é marcado para revisão |
+
+## Riscos do edital
+
+A análise aponta riscos em duas camadas:
+
+- **Regras**, para o que a lei define em números ou datas: prazo mínimo entre a
+  publicação e a abertura, prazo de impugnação, limites de garantia de proposta e
+  contratual, capital ou patrimônio mínimo, visita técnica obrigatória, vedação a
+  consórcio e datas de abertura divergentes.
+- **IA com a lei como referência**, para o que exige interpretação: exigências de
+  qualificação técnica ou econômica possivelmente restritivas e outras restrições à
+  competição. Para cada tema, o sistema busca os artigos pertinentes da Lei 14.133 e só
+  aceita riscos que citem esses artigos.
+
+Todo risco traz o trecho do edital (conferido contra o texto da página), o artigo da lei
+com o texto oficial, a severidade (baixa, média, alta) e a origem (regra ou IA). Achados
+da IA sem trecho comprovado ou sem artigo recuperado são descartados e listados à parte.
+
+| Endereço | O que retorna |
+| --- | --- |
+| `GET /analyses/ID` | o resultado completo, com `risks.risks`, `risks.discarded` e `risks.warnings` |
+| `GET /analyses/ID/risks?audience=licitante` | os riscos com a orientação para a empresa licitante |
+| `GET /analyses/ID/risks?audience=orgao` | os riscos com o alerta para o órgão ("isto pode gerar impugnação") |
+
+Pela linha de comando, sem banco, com vários editais de uma vez:
+
+```bash
+just analyze ../data/samples/*.pdf
+```
+
+Ao final, o comando confere se todo risco de todos os editais tem citação e artigo válidos.
 
 ## Buscar na Lei 14.133/2021
 
@@ -186,11 +225,11 @@ lei está em [data/law/README.md](data/law/README.md).
 | --- | --- |
 | `just dev` | Sobe Postgres, backend e frontend com Docker |
 | `just dev-backend` / `just dev-frontend` | Sobe cada parte localmente, com recarga automática |
-| `just test` | Roda os testes do backend (pytest) |
+| `just test` | Roda os testes do backend (pytest); os que precisam de PostgreSQL são pulados |
 | `just lint` | Roda ruff, mypy, ESLint e o type-check do TypeScript |
 | `just fmt` | Formata o código do backend |
 | `just migrate` | Aplica as migrações do banco |
-| `just analyze ARQUIVO.pdf` | Analisa um edital com o LLM real, sem banco (tem custo) |
+| `just analyze ARQUIVO.pdf ...` | Analisa um ou mais editais (campos e riscos) com o LLM real, sem banco (tem custo) |
 | `just index-law` | Indexa a Lei 14.133 no PostgreSQL |
 | `just eval-law` | Mede o recall@5 da busca na lei e gera o relatório |
 | `just eval` | Roda a avaliação (a implementar na Etapa 9) |
