@@ -1,0 +1,4 @@
+# Keep LF line endings everywhere so files behave the same on Windows, Docker and CI.
+* text=auto eol=lf
+*.ico binary
+*.pdf binary
