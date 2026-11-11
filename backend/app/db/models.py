@@ -9,8 +9,10 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -101,5 +103,56 @@ class Chunk(Base):
     text: Mapped[str] = mapped_column(Text)
     page_start: Mapped[int] = mapped_column(Integer)
     page_end: Mapped[int] = mapped_column(Integer)
+    # [[page number, character offset where that page begins in ``text``], ...]
+    page_spans: Mapped[list[list[int]]] = mapped_column(JsonType, default=list)
+    # Cached embedding (float32 bytes) and the model that produced it. A per-document
+    # search covers a few hundred chunks at most, so it is done in memory.
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
+    embedding_model: Mapped[str | None] = mapped_column(String(200))
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class AnalysisStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class Analysis(Base):
+    """One extraction run over a document, with everything needed to audit it."""
+
+    __tablename__ = "analyses"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default=AnalysisStatus.PENDING.value)
+    error: Mapped[str | None] = mapped_column(Text)
+    steps_done: Mapped[int] = mapped_column(Integer, default=0)
+    steps_total: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Audit trail: what produced this result.
+    strategy: Mapped[str] = mapped_column(String(50))
+    prompt_version: Mapped[str] = mapped_column(String(100))
+    prompt_hash: Mapped[str] = mapped_column(String(64))
+    llm_provider: Mapped[str] = mapped_column(String(50))
+    llm_model: Mapped[str] = mapped_column(String(100))
+    embedding_model: Mapped[str] = mapped_column(String(200))
+
+    # Result (EditalExtraction as JSON) and per-call usage records.
+    result: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
+    runs: Mapped[list[dict[str, Any]]] = mapped_column(JsonType, default=list)
+    citation_counts: Mapped[dict[str, int]] = mapped_column(JsonType, default=dict)
+    warnings: Mapped[list[str]] = mapped_column(JsonType, default=list)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    latency_ms: Mapped[float | None] = mapped_column(Float)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    document: Mapped[Document] = relationship()

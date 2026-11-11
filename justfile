@@ -62,6 +62,11 @@ fmt:
     uv run ruff format .
     uv run ruff check --fix .
 
+# Analyze one edital with the real LLM, no database needed (costs money)
+[working-directory('backend')]
+analyze pdf:
+    uv run python scripts/analyze.py "{{pdf}}"
+
 # Run the evaluation suite against the golden set (implemented in stage 9)
 eval:
     @echo "A avaliacao sera implementada na Etapa 9 (ver eval/README.md)."

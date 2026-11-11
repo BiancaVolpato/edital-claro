@@ -15,7 +15,7 @@ from app.db.models import ChunkKind
 
 DEFAULT_MAX_CHARS = 2000
 _MAX_HEADING_CHARS = 150
-_HEADING_SEPARATOR = " › "
+HEADING_SEPARATOR = " › "
 
 _ANNEX = re.compile(r"^ANEXO\b")
 _ANNEX_NUMBERED = re.compile(r"^ANEXO\s+(?:[IVXLCDM]+|\d+|[A-Z])\s*[-–—:.]")
@@ -44,6 +44,9 @@ class ChunkDraft:
     text: str
     page_start: int
     page_end: int
+    # (page number, character offset in ``text`` where that page begins), in order.
+    # Lets later stages show the model exactly which page each line belongs to.
+    page_spans: list[tuple[int, int]]
 
 
 @dataclass(frozen=True)
@@ -155,7 +158,7 @@ def _split_into_sections(lines: list[_Line]) -> list[_Section]:
             if current_annex is None:
                 sections.append(_Section(kind=ChunkKind.CLAUSE, heading=line.text))
             else:
-                heading = f"{current_annex}{_HEADING_SEPARATOR}{line.text}"
+                heading = f"{current_annex}{HEADING_SEPARATOR}{line.text}"
                 sections.append(_Section(kind=ChunkKind.ANNEX, heading=heading))
         sections[-1].lines.append(line)
 
@@ -202,6 +205,16 @@ def _pack(lines: list[_Line], max_chars: int) -> list[list[_Line]]:
     return [group for group in groups if group]
 
 
+def _page_spans(lines: list[_Line]) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    offset = 0
+    for line in lines:
+        if not spans or spans[-1][0] != line.page:
+            spans.append((line.page, offset))
+        offset += len(line.text) + 1  # +1 for the line break that joins the lines
+    return spans
+
+
 def chunk_pages(pages: list[str], max_chars: int = DEFAULT_MAX_CHARS) -> list[ChunkDraft]:
     """Split normalized page texts into chunks that follow the edital structure."""
     chunks: list[ChunkDraft] = []
@@ -215,6 +228,16 @@ def chunk_pages(pages: list[str], max_chars: int = DEFAULT_MAX_CHARS) -> list[Ch
                     text="\n".join(line.text for line in group),
                     page_start=group[0].page,
                     page_end=group[-1].page,
+                    page_spans=_page_spans(group),
                 )
             )
     return chunks
+
+
+def split_by_page(text: str, page_spans: list[tuple[int, int]]) -> list[tuple[int, str]]:
+    """Cut a chunk's text back into (page number, text) pieces using its page spans."""
+    pieces: list[tuple[int, str]] = []
+    for position, (page, start) in enumerate(page_spans):
+        end = page_spans[position + 1][1] if position + 1 < len(page_spans) else len(text)
+        pieces.append((page, text[start:end].strip("\n")))
+    return pieces

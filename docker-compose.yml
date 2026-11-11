@@ -22,8 +22,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-edital}:${POSTGRES_PASSWORD:-edital}@db:5432/${POSTGRES_DB:-edital_claro}
       STORAGE_DIR: /data/uploads
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-base}
+      # Keep the downloaded embedding model across container restarts.
+      HF_HOME: /data/huggingface
     volumes:
       - uploads:/data/uploads
+      - huggingface:/data/huggingface
     ports:
       - "8000:8000"
     depends_on:
@@ -53,3 +59,4 @@ services:
 volumes:
   pgdata:
   uploads:
+  huggingface:

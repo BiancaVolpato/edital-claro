@@ -137,6 +137,7 @@ def _ingest(session: Session, document: Document, ocr_engine: OcrEngine) -> None
                 text=chunk.text,
                 page_start=chunk.page_start,
                 page_end=chunk.page_end,
+                page_spans=[list(span) for span in chunk.page_spans],
             )
             for chunk in chunks
         )

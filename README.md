@@ -3,9 +3,9 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 2 de 12 concluída. O sistema já recebe um edital em PDF e o
-> transforma em texto por página e em trechos que seguem as cláusulas e os anexos. A
-> análise com IA começa na Etapa 3.
+> **Estado atual:** Etapa 3 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
+> campos com IA e confere cada citação contra o texto da página. Ainda não há interface
+> para a análise (Etapa 8) nem números de qualidade (Etapa 9).
 
 ## O problema
 
@@ -33,7 +33,7 @@ um jeito.
 | --- | --- | --- |
 | 1 | Fundação do repositório | Concluída |
 | 2 | Ingestão de PDF | Concluída |
-| 3 | Extração estruturada com citações | Pendente |
+| 3 | Extração estruturada com citações | Concluída |
 | 4 | Base de conhecimento da Lei 14.133 (RAG) | Pendente |
 | 5 | Análise de riscos | Pendente |
 | 6 | Perfil da empresa e aptidão | Pendente |
@@ -117,6 +117,44 @@ A origem dos editais de exemplo está em [data/samples/README.md](data/samples/R
 Páginas escaneadas passam por OCR (Tesseract). A imagem Docker já traz o Tesseract; fora
 do Docker, sem ele instalado, essas páginas ficam sem texto e o documento registra um aviso.
 
+## Analisar um edital
+
+A análise chama a API da Anthropic, então precisa de uma chave e tem custo. Coloque a
+chave no arquivo `.env` da raiz:
+
+```
+ANTHROPIC_API_KEY=sua-chave
+```
+
+**Sem Docker**, direto pela linha de comando (não precisa de banco de dados):
+
+```bash
+just analyze ../data/samples/lauro_muller_cc_233_2026.pdf
+```
+
+O comando mostra cada campo com valor, confiança e páginas citadas, e no fim o total de
+citações por estado, os tokens e o custo estimado. Na primeira execução ele baixa o
+modelo de embeddings (cerca de 1 GB).
+
+**Com Docker**, pela API: depois de enviar o edital (seção anterior), inicie a análise e
+consulte o resultado:
+
+| Endereço | O que faz |
+| --- | --- |
+| `POST /documents/ID/analyze` | inicia a análise em segundo plano e devolve o `id` dela |
+| `GET /analyses/ID_DA_ANALISE` | status, progresso e, ao final, campos, citações, tokens e custo |
+
+Cada campo extraído traz o valor, as citações (página e trecho literal), a confiança e
+um indicador de revisão. Cada citação é conferida contra o texto da página e recebe um
+estado:
+
+| Estado | Significado |
+| --- | --- |
+| `valid` | o trecho está na página indicada |
+| `wrong_page` | o trecho existe, mas em outra página (a página é corrigida) |
+| `not_found` | o trecho não está no documento; o campo é marcado para revisão |
+| `too_short` | trecho curto demais para comprovar algo; o campo é marcado para revisão |
+
 ## Comandos
 
 | Comando | O que faz |
@@ -127,6 +165,7 @@ do Docker, sem ele instalado, essas páginas ficam sem texto e o documento regis
 | `just lint` | Roda ruff, mypy, ESLint e o type-check do TypeScript |
 | `just fmt` | Formata o código do backend |
 | `just migrate` | Aplica as migrações do banco |
+| `just analyze ARQUIVO.pdf` | Analisa um edital com o LLM real, sem banco (tem custo) |
 | `just eval` | Roda a avaliação (a implementar na Etapa 9) |
 
 ## Estrutura

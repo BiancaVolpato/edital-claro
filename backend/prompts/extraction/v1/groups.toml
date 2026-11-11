@@ -1,0 +1,147 @@
+# Field groups of the "sections" extraction strategy.
+#
+# Each group is one LLM call. Its context is built from the chunks that best
+# match the group's semantic queries and keywords, plus the first chunks of the
+# document when `lead_chunks` > 0 (cover page and preamble).
+#
+#   fields       names declared in app/extraction/schemas.py (EditalExtraction)
+#   queries      natural-language queries for semantic search
+#   keywords     case- and accent-insensitive regular expressions
+#   lead_chunks  how many of the first chunks are always included
+#   top_k        how many retrieved chunks are added
+#   annex_openings  also include the first chunk of every annex (default false)
+#   task         instruction shown to the model before the excerpts
+
+[groups.identification]
+fields = [
+  "number", "modality", "agency", "object",
+  "estimated_value", "judgment_criterion", "execution_regime",
+]
+queries = [
+  "objeto da licitação e modalidade do edital",
+  "valor estimado ou valor máximo admitido para a contratação",
+  "critério de julgamento das propostas e regime de execução da obra",
+]
+keywords = [
+  "valor (total )?(estimado|maximo|global)", "criterio de julgamento", "menor preco",
+  "maior desconto", "regime de execucao", "empreitada", "do objeto", "torna publico",
+]
+lead_chunks = 4
+top_k = 6
+task = """
+Identifique a licitação: número, modalidade, órgão promotor, objeto, valor estimado, \
+critério de julgamento e regime de execução. O número deve incluir a modalidade e o ano \
+quando constarem (por exemplo, "Concorrência Eletrônica nº 233/2026"). O valor estimado é \
+o total da contratação; se o edital declarar o orçamento sigiloso, devolva nulo.
+"""
+
+[groups.dates]
+fields = [
+  "publication_date", "opening", "impugnation_deadline",
+  "clarification_deadline", "execution_period",
+]
+queries = [
+  "data e horário da sessão pública de abertura das propostas",
+  "prazo para impugnação do edital e pedidos de esclarecimento",
+  "prazo de execução da obra ou dos serviços",
+]
+keywords = [
+  "data (da|de) abertura", "sessao publica", "horario", "impugna", "esclarecimento",
+  "prazo de execucao", "prazo (maximo )?para (a )?(execucao|conclusao)", "dias uteis",
+  "dias corridos", "cronograma",
+]
+lead_chunks = 4
+top_k = 8
+task = """
+Extraia as datas e os prazos: data de publicação ou assinatura do edital, data e horário \
+da sessão de abertura, prazo para impugnação, prazo para pedidos de esclarecimento e \
+prazo de execução. Para impugnação e esclarecimentos, registre em "rule" a regra como o \
+edital a escreve e preencha "date" somente se o edital trouxer a data por extenso. O prazo \
+de execução é o da obra ou serviço, não o de vigência do contrato.
+"""
+
+[groups.guarantees_participation]
+fields = [
+  "bid_guarantee", "contract_guarantee", "site_visit",
+  "consortium_allowed", "me_epp_exclusive",
+]
+queries = [
+  "garantia de proposta e garantia de execução contratual, percentual exigido",
+  "visita técnica ou vistoria ao local da obra",
+  "participação de empresas em consórcio",
+  "licitação exclusiva para microempresas e empresas de pequeno porte",
+]
+keywords = [
+  "garantia", "seguro-garantia", "caucao", "fianca", "vistoria", "visita tecnica",
+  "consorcio", "microempresa", "pequeno porte", "me/epp", "exclusiv",
+  "lei complementar (n.? ?)?123",
+]
+lead_chunks = 0
+top_k = 14
+task = """
+Extraia as condições de garantia e de participação: garantia de proposta, garantia de \
+execução contratual, visita técnica, participação em consórcio e exclusividade para \
+ME/EPP. Em "required", registre se a garantia é exigida; se o edital a dispensa \
+expressamente, use false e cite o trecho. Em visita técnica, "facultativa" inclui o caso \
+em que a visita pode ser substituída por declaração. Só responda sobre consórcio e \
+exclusividade para ME/EPP se o edital tratar do assunto; tratamento favorecido (como \
+empate ficto) não é exclusividade.
+"""
+
+[groups.qualification_legal_fiscal]
+fields = ["qualification_legal", "qualification_fiscal"]
+queries = [
+  "documentos de habilitação jurídica exigidos dos licitantes",
+  "regularidade fiscal, social e trabalhista: certidões exigidas",
+]
+keywords = [
+  "habilitacao", "regularidade fiscal", "ato constitutivo", "contrato social",
+  "cnpj", "fgts", "certidao", "debitos trabalhistas", "cndt", "fazenda",
+  "inscricao (estadual|municipal)",
+]
+lead_chunks = 0
+top_k = 8
+task = """
+Liste as exigências de habilitação jurídica e de regularidade fiscal, social e \
+trabalhista. Um item por documento ou comprovação exigida. Considere apenas as exigências \
+feitas aos licitantes para a habilitação; não inclua obrigações da contratada durante a \
+execução do contrato.
+"""
+
+[groups.qualification_technical_economic]
+fields = ["qualification_technical", "qualification_economic"]
+queries = [
+  "qualificação técnica: atestados de capacidade técnica, registro no CREA ou CAU, responsável técnico",
+  "qualificação econômico-financeira: balanço patrimonial, índices contábeis, capital social ou patrimônio líquido mínimo",
+]
+keywords = [
+  "habilitacao", "qualificacao tecnica", "capacidade tecnic", "atestado", "acervo", "crea", "cau",
+  "responsavel tecnico", "qualificacao economic", "balanco patrimonial", "liquidez",
+  "patrimonio liquido", "capital (social )?minimo", "falencia", "indices",
+]
+lead_chunks = 0
+top_k = 10
+task = """
+Liste as exigências de qualificação técnica e de qualificação econômico-financeira. Um \
+item por exigência. Na qualificação técnica, mantenha os serviços e os quantitativos \
+mínimos exigidos nos atestados, e diferencie o que é exigido da empresa (capacidade \
+operacional) do que é exigido do profissional (capacidade profissional). Na \
+econômico-financeira, mantenha os índices e os valores mínimos. Considere apenas as \
+exigências feitas aos licitantes para a habilitação.
+"""
+
+[groups.annexes]
+fields = ["annexes"]
+queries = [
+  "relação dos anexos que integram o edital",
+  "anexo termo de referência, minuta do contrato, modelo de proposta e declarações",
+]
+keywords = ["anexo [ivxlc0-9]+", "fazem parte integrante", "integram (este|o) edital", "^anexo"]
+lead_chunks = 2
+top_k = 4
+annex_openings = true
+task = """
+Liste os anexos do edital. Um item por anexo, com o número e o título (por exemplo, \
+"Anexo II - Minuta do Contrato"). Use a relação de anexos do edital e os títulos dos \
+próprios anexos; não liste o mesmo anexo duas vezes.
+"""

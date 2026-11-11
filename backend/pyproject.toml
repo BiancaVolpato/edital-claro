@@ -5,13 +5,18 @@ description = "AI-assisted analysis of Brazilian public works procurement notice
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.14",
+    "anthropic>=2.8.0",
     "fastapi>=0.115",
+    "numpy>=2.5.4",
     "ocrmypdf>=17.14.1",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.6",
     "pymupdf>=2.1",
     "python-multipart>=0.0.33",
+    "rapidfuzz>=3.14.6",
+    "sentence-transformers>=6.2.0",
     "sqlalchemy>=2.0.36",
+    "torch>=2.15.0",
     "uvicorn[standard]>=0.32",
 ]
 
@@ -26,6 +31,15 @@ dev = [
 [tool.uv]
 # This is an application, not a distributable library.
 package = false
+
+# CPU-only PyTorch: the default Linux wheels bundle CUDA and are several GB larger.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100
@@ -45,7 +59,7 @@ known-third-party = ["alembic"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "alembic", "tests"]
+files = ["app", "alembic", "tests", "scripts"]
 # PyMuPDF ships without complete type annotations.
 untyped_calls_exclude = ["pymupdf"]
 
@@ -54,4 +68,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "db: requires a running PostgreSQL with pgvector (set RUN_DB_TESTS=1)",
+    "llm: calls the real LLM API and costs money (set RUN_LLM_TESTS=1)",
 ]
