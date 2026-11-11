@@ -15,6 +15,8 @@ from typing import Protocol
 
 import pymupdf
 
+from app.ingestion.text import page_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +90,6 @@ class OcrmypdfEngine:
 
             with pymupdf.open(target) as recognized:
                 return {
-                    number: str(recognized.load_page(position).get_text())
+                    number: page_text(recognized.load_page(position))
                     for position, number in enumerate(page_numbers)
                 }

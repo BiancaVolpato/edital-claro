@@ -7,6 +7,7 @@ from typing import Any
 import pymupdf
 
 from app.ingestion.ocr import OcrEngine, OcrError
+from app.ingestion.text import page_text
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,7 @@ def extract_pdf(pdf_bytes: bytes, ocr_engine: OcrEngine | None = None) -> Extrac
             raise InvalidPdfError("PDF has no pages")
 
         texts = {
-            index + 1: str(document.load_page(index).get_text())
-            for index in range(document.page_count)
+            index + 1: page_text(document.load_page(index)) for index in range(document.page_count)
         }
         raw_metadata = document.metadata or {}
 

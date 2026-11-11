@@ -129,3 +129,14 @@ def test_real_ocr_recovers_the_text_of_a_scanned_page(mixed_scan_pdf: bytes) -> 
     recall = len(expected & recognized) / len(expected)
     assert recall >= 0.9, f"OCR recovered only {recall:.0%} of the words"
     assert "sessão" in recognized
+
+
+def test_visible_text_rejected_by_the_default_extraction_is_kept() -> None:
+    """Regression: PyMuPDF's default dropped 53% of the Palhoça edital, all of it visible."""
+    result = extract_pdf((SAMPLES_DIR / "palhoca_cce_241_2026.pdf").read_bytes())
+    pages = normalize_pages([page.text for page in result.pages])
+
+    assert "Declaro sob as penas da lei, que até a presente data inexistem fatos impeditivos" in (
+        " ".join(pages[8].split())
+    )
+    assert sum(len(page.text) for page in result.pages) > 180_000
