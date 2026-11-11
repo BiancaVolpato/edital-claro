@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     extraction_prompt_version: str = "extraction/v1"
     # Versioned prompt set of the interpretive risk analysis.
     risk_prompt_version: str = "risks/v1"
+    # Versioned prompt of the attestation comparison in the eligibility check.
+    eligibility_prompt_version: str = "eligibility/v1"
 
 
 @lru_cache

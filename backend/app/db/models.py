@@ -202,3 +202,44 @@ class LawProvision(Base):
     search: Mapped[str] = mapped_column(
         TSVECTOR, Computed("to_tsvector('portuguese', context)", persisted=True)
     )
+
+
+class CompanyProfile(Base):
+    """A bidder's profile (``CompanyProfileData``), compared against editais."""
+
+    __tablename__ = "company_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200))
+    # The whole profile as validated JSON. Its nested lists (attestations,
+    # certificates) are only ever read together with the profile.
+    data: Mapped[dict[str, Any]] = mapped_column(JsonType)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class EligibilityCheck(Base):
+    """One comparison of a profile with an analysis, kept as it was produced."""
+
+    __tablename__ = "eligibility_checks"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("analyses.id", ondelete="CASCADE"), index=True
+    )
+    # Kept when the profile is deleted: the snapshot below is what was compared.
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("company_profiles.id", ondelete="SET NULL"), index=True
+    )
+    profile_snapshot: Mapped[dict[str, Any]] = mapped_column(JsonType)
+    report: Mapped[dict[str, Any]] = mapped_column(JsonType)
+    # Audit trail of the attestation comparison (the only LLM step).
+    prompt_version: Mapped[str] = mapped_column(String(100))
+    prompt_hash: Mapped[str] = mapped_column(String(64))
+    llm_model: Mapped[str | None] = mapped_column(String(100))
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

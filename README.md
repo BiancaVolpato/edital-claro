@@ -3,10 +3,10 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 5 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
-> campos com IA conferindo cada citação, e aponta riscos com fundamentação na Lei
-> 14.133/2021, cada um com o trecho do edital e o artigo da lei. Ainda não há interface
-> para a análise (Etapa 8) nem números de qualidade (Etapa 9).
+> **Estado atual:** Etapa 6 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
+> campos com IA conferindo cada citação, aponta riscos com fundamentação na Lei
+> 14.133/2021 e compara as exigências de habilitação com o perfil de uma empresa. Ainda
+> não há interface para a análise (Etapa 8) nem números de qualidade (Etapa 9).
 
 ## O problema
 
@@ -37,7 +37,7 @@ um jeito.
 | 3 | Extração estruturada com citações | Concluída |
 | 4 | Base de conhecimento da Lei 14.133 (RAG) | Concluída |
 | 5 | Análise de riscos | Concluída |
-| 6 | Perfil da empresa e aptidão | Pendente |
+| 6 | Perfil da empresa e aptidão | Concluída |
 | 7 | Integração com o PNCP | Pendente |
 | 8 | Frontend | Pendente |
 | 9 | Avaliação | Pendente |
@@ -194,6 +194,49 @@ just analyze ../data/samples/*.pdf
 ```
 
 Ao final, o comando confere se todo risco de todos os editais tem citação e artigo válidos.
+
+## Verificar a aptidão de uma empresa
+
+Com uma análise concluída, cadastre o perfil da empresa e compare-o com as exigências de
+habilitação do edital. Há um perfil fictício pronto em
+[data/profiles/construtora_exemplo.json](data/profiles/construtora_exemplo.json).
+
+```bash
+curl -H "Content-Type: application/json" -d @data/profiles/construtora_exemplo.json http://localhost:8000/profiles
+```
+
+```bash
+curl -H "Content-Type: application/json" -d '{"profile_id": "ID_DO_PERFIL"}' http://localhost:8000/analyses/ID_DA_ANALISE/eligibility
+```
+
+| Endereço | O que faz |
+| --- | --- |
+| `POST /profiles` | cadastra um perfil |
+| `GET /profiles` e `GET /profiles/ID` | lista os perfis ou mostra um |
+| `PUT /profiles/ID` | substitui o perfil |
+| `DELETE /profiles/ID` | apaga o perfil (as verificações já feitas ficam guardadas) |
+| `POST /analyses/ID/eligibility` | compara o perfil com o edital e devolve o relatório |
+
+O perfil traz porte (ME, EPP ou demais), CNAEs, capital social, patrimônio líquido,
+atestados técnicos (com os serviços, quantidades e unidades), certidões com validade e
+registro no CREA ou CAU.
+
+O relatório tem um resultado para cada exigência extraída do edital, com o trecho e a
+página de origem:
+
+| Resultado | Significado |
+| --- | --- |
+| `atende` | o perfil cumpre a exigência |
+| `nao_atende` | o perfil não cumpre (por exemplo, certidão que vence antes da abertura) |
+| `nao_verificavel` | o perfil não tem o dado, ou a exigência não pôde ser lida; conferir à mão |
+
+O resumo traz o veredito (`apto`, `apto_com_ressalvas` ou `inapto`), o que falta e os prazos
+críticos: abertura, impugnação, esclarecimentos e certidões a renovar.
+
+Datas, valores e quantidades são comparados por código. A IA só diz quais atestados são do
+mesmo tipo de serviço que a exigência, e nem vê as quantidades executadas: a soma e a
+comparação com o mínimo são feitas depois, por código. Sem chave da API, a verificação roda
+do mesmo jeito e só os atestados ficam como `nao_verificavel`.
 
 ## Buscar na Lei 14.133/2021
 

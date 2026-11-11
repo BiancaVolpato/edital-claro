@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import get_settings
 from app.db import session as db_session
 from app.db.base import Base
-from app.db.models import Document, LawProvision
+from app.db.models import CompanyProfile, Document, LawProvision
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -36,14 +36,14 @@ def _postgres_engine() -> Iterator[Engine | None]:
         return
     engine = create_engine(get_settings().database_url)
     command.upgrade(alembic_config(), "head")
-    # Tests delete every document and the law index when they finish. Refuse to
+    # Tests delete every document, profile and the law index when they finish. Refuse to
     # run against a database that already holds data (e.g. the development one).
     with engine.connect() as connection:
         existing = {
             model.__tablename__: connection.execute(
                 select(func.count()).select_from(model)
             ).scalar()
-            for model in (Document, LawProvision)
+            for model in (Document, CompanyProfile, LawProvision)
         }
     if any(existing.values()):
         engine.dispose()
@@ -77,7 +77,9 @@ def db_engine(
 
     if _postgres_engine is not None:
         with engine.begin() as connection:
-            connection.execute(delete(Document))  # pages and chunks go with it (cascade)
+            # Pages, chunks, analyses and eligibility checks go with them (cascade).
+            connection.execute(delete(Document))
+            connection.execute(delete(CompanyProfile))
     else:
         engine.dispose()
 

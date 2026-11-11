@@ -1,0 +1,34 @@
+{
+  "name": "Construtora Exemplo Ltda",
+  "cnpj": "11.222.333/0001-81",
+  "size": "EPP",
+  "cnaes": ["4211-1/01", "4213-8/00"],
+  "share_capital": 300000,
+  "net_worth": 450000,
+  "attestations": [
+    {
+      "description": "Pavimentação de vias urbanas no bairro Centro",
+      "issuer": "Prefeitura de Exemplo",
+      "quantities": [
+        {"service": "Pavimentação asfáltica em CBUQ", "quantity": 2100, "unit": "m2"},
+        {"service": "Drenagem pluvial com tubos de concreto", "quantity": 300, "unit": "m"}
+      ]
+    },
+    {
+      "description": "Recapeamento asfáltico da Rua das Flores",
+      "issuer": "Município de Outro Exemplo",
+      "quantities": [
+        {"service": "Recapeamento em CBUQ", "quantity": 1500, "unit": "m2"}
+      ]
+    }
+  ],
+  "certificates": [
+    {"kind": "federal", "valid_until": "2027-01-20"},
+    {"kind": "estadual", "valid_until": "2026-11-05"},
+    {"kind": "municipal", "valid_until": "2027-01-30"},
+    {"kind": "fgts", "valid_until": "2026-12-30"},
+    {"kind": "trabalhista", "valid_until": "2027-03-01"},
+    {"kind": "falencia", "valid_until": "2027-01-01"}
+  ],
+  "registration": {"council": "CREA", "number": "123456-7", "state": "SC"}
+}

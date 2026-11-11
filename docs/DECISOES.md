@@ -543,3 +543,56 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   de regressão confere um trecho da página 9 de Palhoça que antes se perdia. O defeito
   existia desde a Etapa 2 e passou porque os dois editais de exemplo da época não o
   tinham: mais editais de teste, de órgãos diferentes, pegam esse tipo de problema.
+
+## ADR-027: Aptidão decidida por código; o LLM só compara a natureza dos atestados
+
+- **Etapa:** 6
+- **Contexto:** A aptidão de uma empresa depende de números (capital, patrimônio líquido,
+  quantitativos, validades) e de uma comparação de sentido: se um atestado de
+  "recapeamento em CBUQ" comprova "pavimentação asfáltica". Um LLM que compare números
+  pode errar contas e não é reprodutível.
+- **Opções:** (a) mandar perfil e exigências ao LLM e pedir o veredito; (b) tudo por regras,
+  inclusive a semelhança entre serviços; (c) regras para os números e datas, LLM só para a
+  semelhança entre serviços.
+- **Escolha:** (c). O código classifica cada exigência extraída por palavras-chave (certidão,
+  registro no conselho, capital ou patrimônio, atestado, índices etc.), lê os números do
+  texto (R$, %, quantidades com unidade) e compara com campos tipados do perfil. Para
+  atestados, o LLM recebe as exigências e os itens de serviço dos atestados **sem as
+  quantidades executadas** e devolve só os códigos dos itens compatíveis; o código soma os
+  itens da mesma unidade e compara com o mínimo. Códigos inventados são ignorados.
+- **Trade-off:** Resultados auditáveis, testáveis e com no máximo uma chamada ao LLM por
+  verificação. A classificação por palavras-chave erra em redações incomuns, e o que não é
+  reconhecido vira "não foi possível verificar", nunca "atende". Quantidades em unidades
+  diferentes (m² contra m) não são convertidas.
+
+## ADR-028: Sem dado, "não foi possível verificar"; veredito em três níveis
+
+- **Etapa:** 6
+- **Contexto:** Muitas exigências não têm como ser conferidas com o perfil (balanço, contrato
+  social, declarações, índices contábeis). Tratar isso como "atende" daria falsa segurança;
+  como "não atende", tornaria toda empresa inapta.
+- **Escolha:** Cada exigência recebe "atende", "não atende" ou "não foi possível verificar",
+  com o motivo. O veredito é "inapto" se houver algum "não atende"; "apto com ressalvas" se
+  restarem itens a conferir; "apto" só quando tudo foi conferido e atendido. Certidão não
+  cadastrada é "não foi possível verificar" (é emitida na hora); certidão que vence antes da
+  abertura é "não atende" e entra nos prazos críticos. Patrimônio exigido só quando os
+  índices ficam abaixo do limite não reprova a empresa, porque o perfil não tem os índices.
+  As validades são conferidas na data de abertura; se ela já passou ou não foi extraída com
+  citação, na data de hoje, com aviso.
+- **Trade-off:** Na prática, editais reais quase sempre resultam em "apto com ressalvas",
+  com uma lista do que conferir à mão. É menos conclusivo, mas não afirma o que não sabe.
+
+## ADR-029: Perfil guardado como JSON validado; verificação síncrona e registrada
+
+- **Etapa:** 6
+- **Contexto:** O perfil tem listas aninhadas (atestados com itens, certidões) que sempre são
+  lidas junto com ele. A verificação faz no máximo uma chamada ao LLM.
+- **Escolha:** Tabela `company_profiles` com o perfil inteiro numa coluna JSONB, validado pelo
+  Pydantic na entrada. `POST /analyses/{id}/eligibility` roda de forma síncrona e grava em
+  `eligibility_checks` o relatório, uma cópia do perfil como estava, a versão e o hash do
+  prompt e o uso de tokens. Sem chave da API, a verificação roda assim mesmo e só os
+  atestados ficam sem conferência.
+- **Trade-off:** Mais simples que tabelas para cada lista, mas não dá para consultar "todas
+  as empresas com certidão vencida" em SQL. Apagar um perfil mantém as verificações antigas
+  (o vínculo vira nulo). A requisição leva alguns segundos quando chama o LLM; se crescer,
+  passa para segundo plano como a análise.
