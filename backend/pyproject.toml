@@ -6,8 +6,11 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
+    "ocrmypdf>=17.14.1",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.6",
+    "pymupdf>=2.1",
+    "python-multipart>=0.0.33",
     "sqlalchemy>=2.0.36",
     "uvicorn[standard]>=0.32",
 ]
@@ -30,6 +33,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Editais use typographic characters (en dash, "›", "º") that the parser must match
+# literally, so the "ambiguous unicode character" rules do not apply here.
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.isort]
 # The local "alembic/" migrations folder would otherwise make ruff treat the library as first-party.
@@ -40,6 +46,8 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 files = ["app", "alembic", "tests"]
+# PyMuPDF ships without complete type annotations.
+untyped_calls_exclude = ["pymupdf"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

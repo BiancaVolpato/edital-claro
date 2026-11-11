@@ -3,8 +3,9 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 1 de 12 concluída (fundação do repositório). Ainda não há análise
-> de editais; o que existe é o esqueleto que roda, com testes e CI.
+> **Estado atual:** Etapa 2 de 12 concluída. O sistema já recebe um edital em PDF e o
+> transforma em texto por página e em trechos que seguem as cláusulas e os anexos. A
+> análise com IA começa na Etapa 3.
 
 ## O problema
 
@@ -31,7 +32,7 @@ um jeito.
 | Etapa | Entrega | Estado |
 | --- | --- | --- |
 | 1 | Fundação do repositório | Concluída |
-| 2 | Ingestão de PDF | Pendente |
+| 2 | Ingestão de PDF | Concluída |
 | 3 | Extração estruturada com citações | Pendente |
 | 4 | Base de conhecimento da Lei 14.133 (RAG) | Pendente |
 | 5 | Análise de riscos | Pendente |
@@ -92,6 +93,29 @@ just dev-frontend
 
 Sem um PostgreSQL rodando, a API sobe normalmente e o `/health` informa
 `"database": "unavailable"`.
+
+## Enviar um edital
+
+Com tudo no ar pelo Docker (`just dev`), envie um dos editais de exemplo:
+
+```bash
+curl -F "file=@data/samples/lauro_muller_cc_233_2026.pdf" http://localhost:8000/documents
+```
+
+A resposta traz o `id` do documento. O processamento roda em segundo plano; consulte o
+resultado trocando `ID` pelo valor recebido:
+
+| Endereço | O que retorna |
+| --- | --- |
+| `GET /documents/ID` | status (`pending`, `processing`, `ready`, `failed`), metadados e resumo das páginas |
+| `GET /documents/ID/pages/4` | texto normalizado da página 4 |
+| `GET /documents/ID/chunks` | trechos em ordem de leitura, com título, tipo e páginas |
+
+Os mesmos endpoints podem ser testados pelo navegador em <http://localhost:8000/docs>.
+A origem dos editais de exemplo está em [data/samples/README.md](data/samples/README.md).
+
+Páginas escaneadas passam por OCR (Tesseract). A imagem Docker já traz o Tesseract; fora
+do Docker, sem ele instalado, essas páginas ficam sem texto e o documento registra um aviso.
 
 ## Comandos
 

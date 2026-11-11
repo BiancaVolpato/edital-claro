@@ -23,9 +23,14 @@ def get_engine() -> Engine:
     )
 
 
+def new_session() -> Session:
+    """Open a session; the caller is responsible for closing it."""
+    return sessionmaker(bind=get_engine(), expire_on_commit=False)()
+
+
 def get_session() -> Iterator[Session]:
     """FastAPI dependency that yields a session and always closes it."""
-    session = sessionmaker(bind=get_engine(), expire_on_commit=False)()
+    session = new_session()
     try:
         yield session
     finally:

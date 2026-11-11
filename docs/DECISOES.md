@@ -97,3 +97,101 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
 - **Nota:** O scaffold foi gerado com as versões atuais (`create-next-app` com Next.js 16 e
   `shadcn` com o estilo padrão, baseado em Base UI). Mantive os padrões das ferramentas em
   vez de fixar versões antigas.
+
+## ADR-007: Extração com PyMuPDF e OCR apenas nas páginas sem texto
+
+- **Etapa:** 2
+- **Contexto:** Todo o resto do sistema depende de saber em que página está cada trecho.
+  A maioria dos editais tem texto nativo, mas alguns trazem páginas escaneadas.
+- **Opções:** (a) OCR no documento inteiro; (b) texto nativo com PyMuPDF e OCR só onde não
+  há texto; (c) ignorar páginas escaneadas.
+- **Escolha:** Opção (b). Uma página com menos de 20 caracteres é tratada como sem texto e
+  só ela vai para o `ocrmypdf` (Tesseract em português), rodando em um subprocesso com
+  tempo limite. O mecanismo de OCR fica atrás de um protocolo (`OcrEngine`).
+- **Trade-off:** O texto nativo é exato e leva menos de 2 s em 88 páginas; OCR é lento e
+  erra caracteres, então fica restrito ao necessário. O limite de 20 caracteres não pega
+  páginas com camada de texto ruim (por exemplo, um escaneado com OCR antigo embutido).
+  Quando o OCR não está instalado ou falha, a ingestão **não** falha: a página fica vazia
+  e o documento registra um aviso em `metadata.warnings`, para que a ausência de texto
+  seja visível e não silenciosa. Cada página guarda se veio de OCR (`ocr`), o que permite
+  tratar citações dessas páginas com mais cautela nas próximas etapas.
+
+## ADR-008: Normalização conservadora, preservando as quebras de linha
+
+- **Etapa:** 2
+- **Contexto:** O texto extraído traz ruído de layout que atrapalha a busca e a validação
+  de citações: caracteres invisíveis, palavras hifenizadas na quebra de linha, cabeçalhos
+  e números de página repetidos. Nos editais de exemplo apareceram espaços de largura
+  zero no meio de títulos e o número da página no topo de todas as páginas.
+- **Opções:** (a) guardar o texto bruto; (b) normalizar de forma agressiva, juntando as
+  linhas em parágrafos; (c) normalizar só o que é ruído, mantendo as linhas.
+- **Escolha:** Opção (c). Remove caracteres invisíveis e espaços repetidos; junta palavras
+  hifenizadas apenas quando a linha seguinte começa com minúscula; remove linhas que se
+  repetem em pelo menos metade das páginas, olhando só as 3 primeiras e as 3 últimas
+  linhas de cada página e ignorando dígitos (o que cobre "Página 3 de 80").
+- **Trade-off:** Manter as quebras de linha é o que permite reconhecer títulos de
+  cláusula. Riscos assumidos: uma palavra composta quebrada exatamente no hífen
+  ("técnico-" no fim da linha e "profissional" na seguinte) perde o hífen; documentos com
+  menos de 4 páginas não têm cabeçalhos removidos, por falta de evidência; uma linha de
+  conteúdo que se repita no topo de metade das páginas seria removida. Só o texto
+  normalizado é guardado; o PDF original fica armazenado e pode ser reprocessado se as
+  regras mudarem.
+
+## ADR-009: Chunking pela estrutura do edital, com regras e não com IA
+
+- **Etapa:** 2
+- **Contexto:** A extração (Etapa 3) vai localizar seções relevantes por busca. Chunks que
+  cortam uma cláusula ao meio ou misturam o edital com a minuta do contrato pioram a
+  busca e as citações.
+- **Opções:** (a) janelas de tamanho fixo com sobreposição; (b) pedir a um LLM para
+  segmentar; (c) regras que reconhecem títulos ("5. DA HABILITAÇÃO", "CLÁUSULA NONA",
+  "ANEXO II") e dividem seções longas nos subitens ("5.1.").
+- **Escolha:** Opção (c), com limite de 2.000 caracteres por chunk e divisão por tamanho
+  como reserva quando nenhum título é reconhecido. Cada chunk guarda página inicial e
+  final, o título da seção e o tipo (`preamble`, `clause`, `annex`). Dentro de um anexo, o
+  título carrega o anexo como prefixo ("ANEXO II – MINUTA DO CONTRATO › CLÁUSULA NONA").
+- **Trade-off:** Regras são determinísticas, gratuitas, testáveis e rodam em milissegundos;
+  um LLM custaria tokens em toda ingestão e poderia alterar o texto. O custo é que cada
+  órgão formata de um jeito e algum título vai escapar: nesse caso o texto continua
+  presente, apenas agrupado na seção anterior. As regras foram ajustadas em dois editais
+  reais e evitam os falsos positivos encontrados neles (linhas de tabela como
+  "01 - BSTC D=0,40M", listas de anexos, frases que começam com número). O limite de
+  2.000 caracteres existe porque o modelo de embeddings previsto
+  (`multilingual-e5-base`) lê no máximo 512 tokens. O tipo `annex` permite distinguir, por
+  exemplo, a garantia exigida no edital da garantia descrita na minuta do contrato.
+
+## ADR-010: Ingestão em segundo plano e deduplicação por hash
+
+- **Etapa:** 2
+- **Contexto:** Processar um edital leva de menos de um segundo (texto nativo) a minutos
+  (muitas páginas com OCR). O mesmo edital pode ser enviado mais de uma vez.
+- **Opções:** (a) processar dentro da requisição; (b) `BackgroundTasks` do FastAPI;
+  (c) fila com worker separado (Celery, RQ).
+- **Escolha:** Opção (b). `POST /documents` grava o arquivo, responde `202` com o
+  documento em `pending` e processa em segundo plano; o cliente consulta
+  `GET /documents/{id}` até o status virar `ready` ou `failed`. O arquivo é identificado
+  pelo SHA-256 do conteúdo: reenviar o mesmo PDF devolve o registro existente (`200`,
+  `duplicate: true`) sem reprocessar, exceto se o processamento anterior falhou.
+- **Trade-off:** Não exige infraestrutura nova e o contrato da API já é assíncrono, então
+  trocar por uma fila depois não muda o cliente. A limitação é que a tarefa roda no
+  processo da API: se ele reiniciar no meio, o documento fica preso em `processing` (não
+  há retomada automática). O PDF é salvo com o hash como nome; o nome enviado pelo
+  cliente é guardado só como rótulo e nunca compõe um caminho. O upload já recusa
+  arquivos sem a assinatura de PDF e os maiores que 50 MB; a revisão completa de
+  segurança do upload fica na Etapa 10.
+
+## ADR-011: Testes em SQLite na máquina local e em PostgreSQL no CI
+
+- **Etapa:** 2
+- **Contexto:** Os testes da API precisam de banco, e a máquina de desenvolvimento ainda
+  não tem Docker nem PostgreSQL.
+- **Opções:** (a) exigir PostgreSQL para rodar qualquer teste; (b) simular o banco;
+  (c) rodar a mesma suíte em SQLite em memória localmente e em PostgreSQL no CI.
+- **Escolha:** Opção (c). Com `RUN_DB_TESTS=1` (CI) os testes usam o PostgreSQL com as
+  migrações aplicadas; sem a variável, usam SQLite criado a partir dos modelos.
+- **Trade-off:** `just test` funciona em qualquer máquina, e o CI garante o comportamento
+  no banco real. Para isso os modelos desta etapa usam só tipos portáveis (JSON vira
+  JSONB apenas no PostgreSQL). Isso deixa de valer na Etapa 4: colunas `vector` e busca
+  full-text só existem no PostgreSQL, e os testes dessas partes vão exigir o banco real.
+  Como as migrações são escritas à mão, um teste no CI compara o banco migrado com os
+  modelos e falha se houver diferença.

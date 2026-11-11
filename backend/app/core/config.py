@@ -8,7 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py -> repo root is three levels above this file's directory.
 # Inside the container the file does not exist and settings come from the environment only.
-_ROOT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_ROOT_ENV_FILE = _REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -25,6 +26,16 @@ class Settings(BaseSettings):
     # Local development default; real deployments must override it via DATABASE_URL.
     database_url: str = "postgresql+psycopg://edital:edital@localhost:5432/edital_claro"
     database_connect_timeout_seconds: int = 2
+
+    # Where uploaded PDFs are kept (named by their sha256, never by the client's filename).
+    storage_dir: Path = _REPO_ROOT / "data" / "uploads"
+    max_upload_mb: int = 50
+
+    # Tesseract language pack used by the OCR fallback.
+    ocr_language: str = "por"
+    ocr_timeout_seconds: int = 600
+    # Upper bound for a chunk, sized to fit the embedding model's input window.
+    chunk_max_chars: int = 2000
 
 
 @lru_cache

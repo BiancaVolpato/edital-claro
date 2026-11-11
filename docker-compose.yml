@@ -21,6 +21,9 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-edital}:${POSTGRES_PASSWORD:-edital}@db:5432/${POSTGRES_DB:-edital_claro}
+      STORAGE_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -49,3 +52,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

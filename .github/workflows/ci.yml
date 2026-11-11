@@ -40,6 +40,10 @@ jobs:
       RUN_DB_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Install OCR tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por ghostscript
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
