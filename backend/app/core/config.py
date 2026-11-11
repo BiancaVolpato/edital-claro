@@ -53,6 +53,20 @@ class Settings(BaseSettings):
     # Versioned prompt of the attestation comparison in the eligibility check.
     eligibility_prompt_version: str = "eligibility/v1"
 
+    # PNCP (Portal Nacional de Contratações Públicas): public APIs, no credentials.
+    # Paths follow the official OpenAPI documents of each API.
+    pncp_consulta_url: str = "https://pncp.gov.br/api/consulta"
+    pncp_api_url: str = "https://pncp.gov.br/api/pncp"
+    pncp_timeout_seconds: float = 30.0
+    pncp_max_retries: int = 3
+    # Minimum pause between two requests to the PNCP (polite rate limit).
+    pncp_min_interval_seconds: float = 1.0
+    # Local cache of PNCP JSON responses, so repeated searches do not hit the API.
+    pncp_cache_dir: Path = _REPO_ROOT / "data" / "cache" / "pncp"
+    pncp_cache_ttl_seconds: int = 3600
+    # Upper bound of result pages read per modality in one search (50 results each).
+    pncp_search_max_pages: int = 10
+
 
 @lru_cache
 def get_settings() -> Settings:

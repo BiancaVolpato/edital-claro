@@ -596,3 +596,41 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   as empresas com certidão vencida" em SQL. Apagar um perfil mantém as verificações antigas
   (o vínculo vira nulo). A requisição leva alguns segundos quando chama o LLM; se crescer,
   passa para segundo plano como a análise.
+
+## ADR-030: Busca no PNCP com filtro de texto local
+
+- **Etapa:** 7
+- **Contexto:** A API de Consulta do PNCP (`GET /v1/contratacoes/publicacao`) filtra por
+  período de publicação (até 365 dias), modalidade (obrigatória), UF, código IBGE do
+  município e órgão, mas não tem busca por texto. A especificação pede palavra-chave no
+  objeto ("pavimentação") e município.
+- **Opções:** (a) só repassar os filtros da API; (b) ler as páginas do período e filtrar o
+  objeto e o nome do município aqui; (c) manter uma cópia local do PNCP e indexá-la.
+- **Escolha:** (b). A busca lê as páginas de cada modalidade (50 resultados por página, até
+  10 páginas por modalidade) e filtra o objeto sem diferenciar acentos e maiúsculas, com
+  todas as palavras obrigatórias. O município pode ser filtrado pelo nome (aqui) ou pelo
+  código IBGE (na API). Sem modalidade informada, usa 4 e 5 (concorrência eletrônica e
+  presencial), que é como se contratam obras.
+- **Trade-off:** Simples e sem infraestrutura extra, mas um período longo sem UF lê muitas
+  páginas; quando o limite de páginas corta a leitura, a resposta avisa. Em 10 dias de SC
+  foram 4 requisições e cerca de 10 segundos na primeira vez, e nenhuma requisição na
+  repetição, por causa do cache.
+
+## ADR-031: Cliente educado, cache em disco e download só por caminho documentado
+
+- **Etapa:** 7
+- **Contexto:** O PNCP é um serviço público e compartilhado, sem chave de acesso e sem
+  limites de uso publicados. Os arquivos de uma contratação vêm de outra API (API PNCP,
+  `GET /v1/orgaos/{cnpj}/compras/{ano}/{sequencial}/arquivos`), cuja listagem traz um campo
+  `url` para o download.
+- **Escolha:** Intervalo mínimo de 1 s entre requisições, timeout de 30 s, até 3 novas
+  tentativas com espera exponencial em erros de rede, 429 e 5xx (respeitando
+  `Retry-After`); erros 4xx não são repetidos e a mensagem do PNCP é repassada. As
+  respostas JSON ficam em cache em `data/cache/pncp` por 1 hora. O download usa o caminho
+  documentado montado a partir do CNPJ, ano e sequenciais, e não o `url` da listagem, para
+  que o servidor nunca baixe de outro endereço. O arquivo baixado passa pela mesma ingestão
+  do upload (mesmo limite de tamanho, verificação de PDF, deduplicação por hash) e guarda a
+  origem (`source=pncp`, número de controle e arquivo) nos metadados.
+- **Trade-off:** Uma busca grande demora alguns segundos a mais por causa do intervalo. O
+  cache pode mostrar uma contratação desatualizada por até 1 hora. Arquivos ZIP não são
+  abertos: são recusados com uma mensagem para o usuário enviar os PDFs pelo upload.

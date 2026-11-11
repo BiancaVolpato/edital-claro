@@ -143,6 +143,7 @@ def _ingest(session: Session, document: Document, ocr_engine: OcrEngine) -> None
         )
         document.page_count = len(extraction.pages)
         document.meta = {
+            **(document.meta or {}),  # keeps what was known before, e.g. the PNCP origin
             "pdf": extraction.pdf_metadata,
             "ocr_pages": extraction.ocr_pages,
             "warnings": extraction.warnings,

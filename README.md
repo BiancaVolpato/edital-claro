@@ -3,10 +3,10 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 6 de 12 concluída. O sistema recebe um edital em PDF, extrai 22
-> campos com IA conferindo cada citação, aponta riscos com fundamentação na Lei
-> 14.133/2021 e compara as exigências de habilitação com o perfil de uma empresa. Ainda
-> não há interface para a análise (Etapa 8) nem números de qualidade (Etapa 9).
+> **Estado atual:** Etapa 7 de 12 concluída. O sistema busca editais no PNCP ou recebe um
+> PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com fundamentação na
+> Lei 14.133/2021 e compara as exigências de habilitação com o perfil de uma empresa.
+> Ainda não há interface para a análise (Etapa 8) nem números de qualidade (Etapa 9).
 
 ## O problema
 
@@ -38,7 +38,7 @@ um jeito.
 | 4 | Base de conhecimento da Lei 14.133 (RAG) | Concluída |
 | 5 | Análise de riscos | Concluída |
 | 6 | Perfil da empresa e aptidão | Concluída |
-| 7 | Integração com o PNCP | Pendente |
+| 7 | Integração com o PNCP | Concluída |
 | 8 | Frontend | Pendente |
 | 9 | Avaliação | Pendente |
 | 10 | Segurança, governança e custos | Pendente |
@@ -117,6 +117,43 @@ A origem dos editais de exemplo está em [data/samples/README.md](data/samples/R
 
 Páginas escaneadas passam por OCR (Tesseract). A imagem Docker já traz o Tesseract; fora
 do Docker, sem ele instalado, essas páginas ficam sem texto e o documento registra um aviso.
+
+## Buscar e importar editais do PNCP
+
+O sistema busca contratações publicadas no PNCP (Portal Nacional de Contratações Públicas)
+e importa o edital direto de lá, sem precisar baixar e enviar o PDF.
+
+Buscar obras de pavimentação publicadas em SC entre 1º e 10 de novembro:
+
+```
+http://localhost:8000/pncp/search?data_inicial=2026-11-01&data_final=2026-11-10&uf=SC&q=pavimentação
+```
+
+| Parâmetro | Significado |
+| --- | --- |
+| `data_inicial`, `data_final` | período de publicação no PNCP (até 365 dias) |
+| `uf` | sigla da UF |
+| `municipio` ou `codigo_ibge` | nome do município, ou seu código IBGE de 7 dígitos |
+| `modalidade` | código de modalidade do PNCP; pode repetir. Padrão: 4 e 5 (concorrências) |
+| `q` | palavras que devem aparecer no objeto, sem diferenciar acentos |
+| `limite` | quantos resultados devolver (padrão 50) |
+
+Cada resultado traz o número de controle PNCP (ex.: `82939422000191-1-000153/2026`), o
+órgão, o município, o objeto, o valor estimado e o período de propostas. Para importar:
+
+```bash
+curl -H "Content-Type: application/json" -d '{"numero_controle": "82939422000191-1-000153/2026"}' http://localhost:8000/pncp/import
+```
+
+A importação baixa o arquivo do tipo Edital da contratação (ou outro, com
+`"sequencial_documento": N`) e o processa como um upload. A resposta traz o `id` do
+documento; quando ele estiver `ready`, inicie a análise com `POST /documents/ID/analyze`
+(seção seguinte). Importar de novo a mesma contratação não baixa o arquivo outra vez.
+
+A API do PNCP não busca por texto, então o sistema lê as páginas do período e filtra o
+objeto aqui. As respostas ficam guardadas por 1 hora em `data/cache/pncp`, e há uma pausa
+de 1 segundo entre requisições ao PNCP. Arquivos ZIP não são abertos; nesse caso, baixe-os
+no PNCP e envie os PDFs pelo upload.
 
 ## Analisar um edital
 

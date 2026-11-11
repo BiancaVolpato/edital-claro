@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import analyses, documents, eligibility, health, law, profiles
+from app.api import analyses, documents, eligibility, health, law, pncp, profiles
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import log_requests
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(law.router)
     app.include_router(profiles.router)
     app.include_router(eligibility.router)
+    app.include_router(pncp.router)
     return app
 
 
