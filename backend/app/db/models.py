@@ -147,6 +147,9 @@ class Analysis(Base):
     # Nullable: analyses created before the risk analysis existed have none.
     risk_prompt_version: Mapped[str | None] = mapped_column(String(100))
     risk_prompt_hash: Mapped[str | None] = mapped_column(String(64))
+    # Spending limit in force and application version (nullable: older analyses).
+    cost_limit_usd: Mapped[float | None] = mapped_column(Float)
+    app_version: Mapped[str | None] = mapped_column(String(50))
 
     # Result (EditalExtraction as JSON), risks (RiskReport as JSON) and per-call usage.
     result: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
@@ -242,4 +245,6 @@ class EligibilityCheck(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float | None] = mapped_column(Float)
+    cost_limit_usd: Mapped[float | None] = mapped_column(Float)
+    app_version: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

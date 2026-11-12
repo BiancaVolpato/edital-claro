@@ -53,6 +53,21 @@ class Settings(BaseSettings):
     # Versioned prompt of the attestation comparison in the eligibility check.
     eligibility_prompt_version: str = "eligibility/v1"
 
+    # Spending limits (estimated USD, from app/llm/pricing.py). 0 disables a limit.
+    # One analysis = extraction + risks; one eligibility check = the attestation call.
+    analysis_max_cost_usd: float = 3.0
+    eligibility_max_cost_usd: float = 0.5
+    # Largest PDF accepted, in pages (bounds OCR time and LLM cost).
+    max_pdf_pages: int = 300
+
+    # Rate limit per client IP (in memory, per process). 0 disables a limit.
+    rate_limit_per_minute: int = 120
+    # Endpoints that cost money or load the PNCP: uploads, imports, PNCP searches,
+    # analyses and eligibility checks.
+    rate_limit_costly_per_hour: int = 30
+    # Addresses of proxies whose X-Forwarded-For header is trusted (the frontend).
+    trusted_proxies: list[str] = ["127.0.0.1", "::1"]
+
     # PNCP (Portal Nacional de Contratações Públicas): public APIs, no credentials.
     # Paths follow the official OpenAPI documents of each API.
     pncp_consulta_url: str = "https://pncp.gov.br/api/consulta"

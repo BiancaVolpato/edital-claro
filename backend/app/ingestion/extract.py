@@ -40,18 +40,24 @@ class ExtractionResult:
         return [page.number for page in self.pages if page.ocr]
 
 
-def extract_pdf(pdf_bytes: bytes, ocr_engine: OcrEngine | None = None) -> ExtractionResult:
+def extract_pdf(
+    pdf_bytes: bytes, ocr_engine: OcrEngine | None = None, max_pages: int | None = None
+) -> ExtractionResult:
     """Extract the text of every page, running OCR only on pages without text."""
     try:
         document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     except Exception as exc:  # PyMuPDF raises several unrelated exception types
-        raise InvalidPdfError("file is not a readable PDF") from exc
+        raise InvalidPdfError("O arquivo não é um PDF legível.") from exc
 
     with document:
         if document.needs_pass:
-            raise InvalidPdfError("PDF is password-protected")
+            raise InvalidPdfError("O PDF é protegido por senha.")
         if document.page_count == 0:
-            raise InvalidPdfError("PDF has no pages")
+            raise InvalidPdfError("O PDF não tem páginas.")
+        if max_pages and document.page_count > max_pages:
+            raise InvalidPdfError(
+                f"O PDF tem {document.page_count} páginas; o limite é {max_pages}."
+            )
 
         texts = {
             index + 1: page_text(document.load_page(index)) for index in range(document.page_count)

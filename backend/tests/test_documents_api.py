@@ -111,7 +111,7 @@ def test_corrupted_pdf_is_marked_failed_and_can_be_retried(
     detail = client.get(f"/documents/{uploaded['id']}").json()
 
     assert detail["status"] == "failed"
-    assert detail["error"] == "file is not a readable PDF"
+    assert detail["error"] == "O arquivo não é um PDF legível."
     assert detail["pages"] == []
 
     # Uploading it again triggers a new attempt instead of returning the stale failure.

@@ -3,11 +3,14 @@
 import anthropic
 from pydantic import BaseModel
 
-from app.llm.base import LLMError, LLMNotConfiguredError, LLMProvider, LLMRefusalError, LLMResult
-
-# Non-streaming requests: large enough for the longest group (qualification lists)
-# while staying well inside the SDK's HTTP timeout.
-_MAX_TOKENS = 16000
+from app.llm.base import (
+    MAX_OUTPUT_TOKENS,
+    LLMError,
+    LLMNotConfiguredError,
+    LLMProvider,
+    LLMRefusalError,
+    LLMResult,
+)
 
 
 class AnthropicProvider(LLMProvider):
@@ -35,7 +38,7 @@ class AnthropicProvider(LLMProvider):
             # the SDK validates it into the Pydantic model.
             response = self._client.messages.parse(
                 model=self.model,
-                max_tokens=_MAX_TOKENS,
+                max_tokens=MAX_OUTPUT_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": user}],
                 output_format=schema,

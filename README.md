@@ -3,7 +3,7 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 9 de 12 concluída. Pela interface web, o sistema busca editais no
+> **Estado atual:** Etapa 10 de 12 concluída. Pela interface web, o sistema busca editais no
 > PNCP ou recebe um PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com
 > fundamentação na Lei 14.133/2021 e compara as exigências de habilitação com o perfil de
 > uma empresa. Clicar numa citação abre o PDF na página e destaca o trecho. A avaliação
@@ -43,7 +43,7 @@ um jeito.
 | 7 | Integração com o PNCP | Concluída |
 | 8 | Frontend | Concluída |
 | 9 | Avaliação | Concluída (aguarda o gabarito) |
-| 10 | Segurança, governança e custos | Pendente |
+| 10 | Segurança, governança e custos | Concluída |
 | 11 | Deploy | Pendente |
 | 12 | Documentação e apresentação | Pendente |
 
@@ -218,6 +218,7 @@ consulte o resultado:
 | `POST /documents/ID/analyze` | inicia a análise em segundo plano e devolve o `id` dela |
 | `GET /analyses/ID_DA_ANALISE` | status, progresso e, ao final, campos, citações, tokens e custo |
 | `GET /analyses` | as análises mais recentes (filtro opcional `document_id`) |
+| `GET /analyses/ID_DA_ANALISE/audit` | a trilha de auditoria: prompts, modelos, chamadas, custo e limite |
 | `GET /analyses/ID_DA_ANALISE/report.md` | o relatório em Markdown (`audience=licitante` ou `orgao`) |
 
 Cada campo extraído traz o valor, as citações (página e trecho literal), a confiança e
@@ -374,6 +375,21 @@ eval/       Gabarito, scripts e relatórios de avaliação
 data/       Editais de exemplo e caches locais
 docs/       Decisões de arquitetura e guias
 ```
+
+## Segurança, governança e custos
+
+O que o sistema faz com os dados, onde a decisão continua humana, os riscos de erro da IA e
+como são reduzidos estão em [docs/GOVERNANCA.md](docs/GOVERNANCA.md). Em resumo:
+
+- **Dados:** editais e lei são públicos; o sistema não precisa de dados de pessoas físicas.
+- **Limite de gasto:** US$ 3,00 por análise e US$ 0,50 por verificação de aptidão
+  (`ANALYSIS_MAX_COST_USD`, `ELIGIBILITY_MAX_COST_USD`). Uma chamada que pudesse passar do
+  limite não é feita.
+- **Rate limit por IP:** 120 requisições por minuto e 30 por hora nas rotas que custam
+  dinheiro ou consultam o PNCP (resposta 429).
+- **Upload:** só PDF, até 50 MB e 300 páginas, com o nome do arquivo limpo.
+- **Auditoria:** `GET /analyses/ID/audit` mostra o documento (hash e origem), as versões e
+  os hashes dos prompts, os modelos e cada chamada ao LLM com tokens e custo.
 
 ## Decisões de arquitetura
 

@@ -709,3 +709,56 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   `reviewed` e o aviso de "números preliminares" no relatório). Em troca, os números são
   reproduzíveis, baratos de recalcular (`--reuse`) e não dependem do julgamento de outro
   modelo.
+
+## ADR-036: Limite de gasto por reserva do pior caso de cada chamada
+
+- **Etapa:** 10
+- **Contexto:** Uma análise faz 9 chamadas ao LLM (6 de extração e 3 de riscos), até 3 ao
+  mesmo tempo. Um PDF muito longo, um prompt com defeito ou um laço inesperado poderiam
+  gastar muito sem que ninguém percebesse.
+- **Opções:** (a) somar o custo depois de cada chamada e parar quando passar do limite; (b)
+  estimar o custo da análise inteira antes de começar; (c) antes de cada chamada, reservar o
+  custo do pior caso dela e recusar se a soma passar do limite.
+- **Escolha:** (c), num invólucro (`BudgetedLLM`) em volta de qualquer `LLMProvider`. A
+  reserva usa a entrada estimada (3 caracteres por token, que superestima o português) e o
+  máximo de saída (16 mil tokens); depois da chamada, a reserva vira o custo real. A recusa
+  é um `LLMError`, então o pipeline a trata como chamada falha: o grupo fica sem extração e
+  o motivo aparece nos avisos. Limites padrão: US$ 3,00 por análise e US$ 0,50 por
+  verificação de aptidão. O limite em vigor é gravado com cada resultado.
+- **Trade-off:** (a) deixaria chamadas paralelas passarem juntas do limite; (b) erraria
+  muito, porque o tamanho do texto enviado depende da seleção de trechos. A reserva pelo pior
+  caso é conservadora: com um limite apertado, recusa chamadas que na prática caberiam. Com
+  limite ativo, um modelo sem preço na tabela é recusado, porque o gasto não teria teto.
+
+## ADR-037: Rate limit em memória, com janela geral e janela para rotas caras
+
+- **Etapa:** 10
+- **Contexto:** Sem autenticação, qualquer visitante pode disparar análises (custo de LLM),
+  importações e buscas no PNCP (carga num serviço público).
+- **Opções:** (a) biblioteca de rate limit com Redis; (b) contadores em memória no próprio
+  processo; (c) deixar para o proxy ou a plataforma de hospedagem.
+- **Escolha:** (b). Por IP, uma janela de 1 minuto para todas as rotas (120 requisições) e
+  uma de 1 hora para as rotas caras (30: upload, importação, busca no PNCP, análise e
+  aptidão). O `/health` fica de fora. O IP vem da conexão; o cabeçalho `X-Forwarded-For` só
+  vale quando a conexão vem de um proxy confiável (o servidor do frontend, que repassa as
+  chamadas do navegador) e é lido da direita para a esquerda, pulando os endereços
+  confiáveis, para que o cliente não escolha o próprio IP.
+- **Trade-off:** Sem dependência nova e suficiente para uma instância só. Com várias
+  instâncias, cada uma conta separado, e reiniciar zera os contadores; nesse caso, passar
+  para (a). Visitantes atrás do mesmo IP (uma empresa, uma rede móvel) dividem o limite.
+
+## ADR-038: Endurecimento do upload e da ingestão
+
+- **Etapa:** 10
+- **Contexto:** O upload já tinha limite de tamanho, conferia o PDF pelo conteúdo e nunca
+  usava o nome enviado como caminho. Faltavam um teto de páginas (OCR e custo crescem com o
+  tamanho) e a limpeza do nome exibido.
+- **Escolha:** Teto de 300 páginas (`MAX_PDF_PAGES`), conferido antes de extrair o texto. O
+  nome do arquivo é limpo antes de ser guardado: só o último segmento do caminho, sem
+  caracteres de controle e de formatação (inclusive o controle de direção que faz
+  "edital<U+202E>fdp.exe" aparecer como "editalexe.pdf"), com espaços normalizados e até 255
+  caracteres preservando a extensão. Os mesmos controles de direção são removidos do texto
+  das páginas, porque servem para esconder instruções. As mensagens de erro de PDF inválido
+  passaram para o português, já que aparecem na interface.
+- **Trade-off:** Editais com mais de 300 páginas (raros; os anexos técnicos costumam vir em
+  arquivos separados) são recusados com uma mensagem clara; o limite é configurável.

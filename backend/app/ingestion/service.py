@@ -2,7 +2,9 @@
 
 import hashlib
 import logging
+import re
 import time
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +37,29 @@ class NotAPdfError(ValueError):
 class RegisteredDocument:
     document: Document
     created: bool  # False when the same file had already been ingested
+
+
+def sanitize_filename(name: str) -> str:
+    """A safe label for the client's file name; it is shown, never used as a path.
+
+    Keeps only the last path segment, drops control and formatting characters
+    (including the right-to-left override, U+202E, which can make "edital<U+202E>fdp.exe"
+    display as "editalexe.pdf"), collapses whitespace and caps the length, keeping
+    the extension.
+    """
+    name = unicodedata.normalize("NFC", name or "")
+    name = re.split(r"[\\/]", name)[-1]
+    name = "".join(ch for ch in name if unicodedata.category(ch) not in ("Cc", "Cf"))
+    name = " ".join(name.split()).strip(" .")
+    if not name:
+        return "documento.pdf"
+    if len(name) > _MAX_FILENAME_CHARS:
+        stem, dot, extension = name.rpartition(".")
+        if dot and 0 < len(extension) <= 10:
+            name = f"{stem[: _MAX_FILENAME_CHARS - len(extension) - 1]}.{extension}"
+        else:
+            name = name[:_MAX_FILENAME_CHARS]
+    return name
 
 
 def file_path_for(file_hash: str) -> Path:
@@ -72,7 +97,7 @@ def register_document(
         source=source.value,
         source_ref=source_ref,
         # Kept only as a label for the user; it is never used to build a path.
-        filename=(filename or "documento.pdf")[:_MAX_FILENAME_CHARS],
+        filename=sanitize_filename(filename),
         file_hash=file_hash,
         file_size=len(content),
         status=DocumentStatus.PENDING.value,
@@ -117,7 +142,7 @@ def _ingest(session: Session, document: Document, ocr_engine: OcrEngine) -> None
 
     try:
         content = file_path_for(document.file_hash).read_bytes()
-        extraction = extract_pdf(content, ocr_engine)
+        extraction = extract_pdf(content, ocr_engine, get_settings().max_pdf_pages)
         texts = normalize_pages([page.text for page in extraction.pages])
         chunks = chunk_pages(texts, max_chars=get_settings().chunk_max_chars)
 
@@ -157,7 +182,7 @@ def _ingest(session: Session, document: Document, ocr_engine: OcrEngine) -> None
         return
     except Exception:
         session.rollback()
-        _mark_failed(session, document, "unexpected error while processing the document")
+        _mark_failed(session, document, "Erro inesperado ao processar o documento.")
         logger.exception("ingestion failed", extra=log_context)
         return
 

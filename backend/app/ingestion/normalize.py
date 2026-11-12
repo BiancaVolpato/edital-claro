@@ -8,8 +8,10 @@ Line breaks are preserved: clause headings are recognized by line.
 import re
 from collections import Counter
 
-# Zero-width characters, soft hyphen, BOM and NUL (PostgreSQL rejects NUL in text).
-_INVISIBLE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad\x00]")
+# Zero-width characters, soft hyphen, BOM, NUL (PostgreSQL rejects NUL in text) and
+# bidirectional controls (U+202A-U+202E, U+2066-U+2069), which make text display in
+# a different order than it is stored: a way to hide instructions in a document.
+_INVISIBLE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad\x00\u202a-\u202e\u2066-\u2069]")
 _HORIZONTAL_SPACE = re.compile(r"[ \t\u00a0\u2000-\u200a\u202f\u3000]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 # "habili-\ntação" -> "habilitação". Only joins when the next line starts with a

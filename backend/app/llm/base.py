@@ -9,6 +9,10 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+# Upper bound of the answer of one call. Large enough for the longest group
+# (qualification lists) while staying well inside the SDK's HTTP timeout.
+MAX_OUTPUT_TOKENS = 16000
+
 
 class LLMError(RuntimeError):
     """The call failed or returned something unusable."""

@@ -42,6 +42,8 @@ class AnalysisRead(BaseModel):
     embedding_model: str
     risk_prompt_version: str | None
     risk_prompt_hash: str | None
+    cost_limit_usd: float | None
+    app_version: str | None
     # Result and usage
     result: EditalExtraction | None
     risks: RiskReport | None
@@ -194,4 +196,98 @@ def export_analysis(
         content,
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="analise-{analysis.id}.md"'},
+    )
+
+
+class AuditCall(BaseModel):
+    step: str  # extraction group or "risk:<topic>"
+    model: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
+    latency_ms: float
+    error: str | None
+
+
+class AuditTrail(BaseModel):
+    """Everything that produced an analysis, to reproduce or question a result."""
+
+    analysis_id: uuid.UUID
+    status: str
+    created_at: datetime
+    completed_at: datetime | None
+    app_version: str | None
+    # Input
+    document_id: uuid.UUID
+    filename: str
+    file_sha256: str
+    source: str
+    source_ref: str | None
+    page_count: int | None
+    ocr_pages: list[int]
+    # How it was produced
+    llm_provider: str
+    llm_model: str
+    embedding_model: str
+    extraction_strategy: str
+    extraction_prompt_version: str
+    extraction_prompt_hash: str
+    risk_prompt_version: str | None
+    risk_prompt_hash: str | None
+    calls: list[AuditCall]
+    # Usage against the limit
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
+    cost_limit_usd: float | None
+    citation_counts: dict[str, int]
+    warnings: list[str]
+
+
+@router.get("/analyses/{analysis_id}/audit")
+def get_audit_trail(analysis_id: uuid.UUID, session: SessionDep) -> AuditTrail:
+    """Audit trail: document, prompts (version and hash), models and every LLM call."""
+    analysis = session.get(Analysis, analysis_id)
+    if analysis is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Análise não encontrada.")
+    document = analysis.document
+    return AuditTrail(
+        analysis_id=analysis.id,
+        status=analysis.status,
+        created_at=analysis.created_at,
+        completed_at=analysis.completed_at,
+        app_version=analysis.app_version,
+        document_id=document.id,
+        filename=document.filename,
+        file_sha256=document.file_hash,
+        source=document.source,
+        source_ref=document.source_ref,
+        page_count=document.page_count,
+        ocr_pages=list((document.meta or {}).get("ocr_pages", [])),
+        llm_provider=analysis.llm_provider,
+        llm_model=analysis.llm_model,
+        embedding_model=analysis.embedding_model,
+        extraction_strategy=analysis.strategy,
+        extraction_prompt_version=analysis.prompt_version,
+        extraction_prompt_hash=analysis.prompt_hash,
+        risk_prompt_version=analysis.risk_prompt_version,
+        risk_prompt_hash=analysis.risk_prompt_hash,
+        calls=[
+            AuditCall(
+                step=run["group"],
+                model=run["model"],
+                input_tokens=run.get("input_tokens", 0),
+                output_tokens=run.get("output_tokens", 0),
+                cost_usd=run.get("cost_usd"),
+                latency_ms=run.get("latency_ms", 0.0),
+                error=run.get("error"),
+            )
+            for run in analysis.runs
+        ],
+        input_tokens=analysis.input_tokens,
+        output_tokens=analysis.output_tokens,
+        cost_usd=analysis.cost_usd,
+        cost_limit_usd=analysis.cost_limit_usd,
+        citation_counts=analysis.citation_counts,
+        warnings=analysis.warnings,
     )

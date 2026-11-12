@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app import __version__
 from app.core.config import get_settings
 from app.db import session as db_session
 from app.db.models import Analysis, AnalysisStatus, Chunk, Document, Page
@@ -18,7 +19,8 @@ from app.embeddings.base import EmbeddingProvider, Vectors, get_embedding_provid
 from app.extraction.pipeline import GroupRun, run_extraction
 from app.extraction.prompts import load_prompt_set
 from app.extraction.retrieval import ChunkData, embed_chunks
-from app.llm.base import LLMProvider
+from app.llm.base import MAX_OUTPUT_TOKENS, LLMProvider
+from app.llm.budget import BudgetedLLM
 from app.llm.factory import get_llm_provider
 from app.risks.assessment import assess_risks
 from app.risks.law_repository import (
@@ -49,6 +51,8 @@ def create_analysis(session: Session, document: Document, llm: LLMProvider) -> A
         embedding_model=settings.embedding_model,
         risk_prompt_version=risk_prompt.version,
         risk_prompt_hash=risk_prompt.content_hash,
+        cost_limit_usd=settings.analysis_max_cost_usd or None,
+        app_version=__version__,
         # Locating the sections, one step per extraction group, one per risk topic.
         steps_total=1 + len(prompt.groups) + len(risk_prompt.topics),
         runs=[],
@@ -154,7 +158,9 @@ def _analyze(
         _finish(session, analysis, AnalysisStatus.FAILED, "document has no text to analyze")
         return
 
-    llm = llm or get_llm_provider()
+    settings = get_settings()
+    # Extraction and risk calls share one spending limit per analysis.
+    llm = BudgetedLLM(llm or get_llm_provider(), settings.analysis_max_cost_usd, MAX_OUTPUT_TOKENS)
     embedder = embedder or get_embedding_provider()
     prompt = load_prompt_set(analysis.prompt_version)
     vectors = _chunk_vectors(session, chunks, embedder)
@@ -167,7 +173,6 @@ def _analyze(
         session.commit()
 
     chunk_data = [_to_chunk_data(chunk) for chunk in chunks]
-    settings = get_settings()
     outcome = run_extraction(
         pages=pages,
         chunks=chunk_data,

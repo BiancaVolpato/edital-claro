@@ -6,8 +6,10 @@ import type { NextRequest } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 // Request and response headers worth forwarding; everything else stays behind.
-const REQUEST_HEADERS = ["content-type", "accept"];
-const RESPONSE_HEADERS = ["content-type", "content-disposition", "content-length"];
+// X-Forwarded-For carries the client address set by the hosting platform's proxy,
+// so the backend's rate limit counts each visitor, not this server.
+const REQUEST_HEADERS = ["content-type", "accept", "x-forwarded-for"];
+const RESPONSE_HEADERS = ["content-type", "content-disposition", "content-length", "retry-after"];
 
 async function forward(
   request: NextRequest,

@@ -11,6 +11,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import __version__
 from app.api.profiles import get_profile_or_404
 from app.core.config import get_settings
 from app.db.models import Analysis, AnalysisStatus, EligibilityCheck
@@ -20,7 +21,8 @@ from app.eligibility.prompts import load_eligibility_prompt
 from app.eligibility.schemas import EligibilityReport
 from app.eligibility.service import evaluate_eligibility
 from app.extraction.schemas import EditalExtraction
-from app.llm.base import LLMNotConfiguredError, LLMProvider
+from app.llm.base import MAX_OUTPUT_TOKENS, LLMNotConfiguredError, LLMProvider
+from app.llm.budget import BudgetedLLM
 from app.llm.factory import get_llm_provider
 from app.reports.markdown import render_eligibility
 
@@ -58,6 +60,8 @@ class EligibilityRead(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float | None
+    cost_limit_usd: float | None
+    app_version: str | None
     created_at: datetime
 
 
@@ -74,6 +78,8 @@ def _to_read(check: EligibilityCheck) -> EligibilityRead:
         input_tokens=check.input_tokens,
         output_tokens=check.output_tokens,
         cost_usd=check.cost_usd,
+        cost_limit_usd=check.cost_limit_usd,
+        app_version=check.app_version,
         created_at=check.created_at,
     )
 
@@ -109,10 +115,14 @@ def check_eligibility(
     profile = CompanyProfileData.model_validate(profile_row.data)
     prompt = load_eligibility_prompt(get_settings().eligibility_prompt_version)
 
+    settings = get_settings()
+    budgeted = (
+        BudgetedLLM(llm, settings.eligibility_max_cost_usd, MAX_OUTPUT_TOKENS) if llm else None
+    )
     outcome = evaluate_eligibility(
         extraction=EditalExtraction.model_validate(analysis.result),
         profile=profile,
-        llm=llm,
+        llm=budgeted,
         prompt=prompt,
         today=reference_today,
     )
@@ -128,6 +138,8 @@ def check_eligibility(
         input_tokens=run.input_tokens if run else 0,
         output_tokens=run.output_tokens if run else 0,
         cost_usd=run.cost_usd if run else 0.0,
+        cost_limit_usd=settings.eligibility_max_cost_usd or None,
+        app_version=__version__,
     )
     session.add(check)
     session.commit()

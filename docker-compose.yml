@@ -27,6 +27,9 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-base}
       # Keep the downloaded embedding model across container restarts.
       HF_HOME: /data/huggingface
+      # The frontend container forwards browser calls; trust its X-Forwarded-For
+      # (Docker networks use 172.16.0.0/12) so the rate limit counts each visitor.
+      TRUSTED_PROXIES: '["127.0.0.1", "::1", "172.16.0.0/12"]'
     volumes:
       - uploads:/data/uploads
       - huggingface:/data/huggingface
