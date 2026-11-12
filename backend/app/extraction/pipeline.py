@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -51,6 +51,23 @@ class GroupRun:
     latency_ms: float = 0.0
     cost_usd: float | None = None
     error: str | None = None
+
+
+Strategy = Literal["sections", "direct"]
+# About 15-20 thousand tokens of Portuguese text: the whole of a short edital.
+DIRECT_MAX_CHARS = 60_000
+
+
+def leading_chunks(chunks: list[ChunkData], max_chars: int) -> list[ChunkData]:
+    """The chunks from the start of the document while they fit in ``max_chars``."""
+    selected: list[ChunkData] = []
+    total = 0
+    for chunk in chunks:
+        if selected and total + len(chunk.text) > max_chars:
+            break
+        selected.append(chunk)
+        total += len(chunk.text)
+    return selected
 
 
 @dataclass(frozen=True)
@@ -132,13 +149,26 @@ def run_extraction(
     embedder: EmbeddingProvider,
     max_concurrency: int = 3,
     on_progress: ProgressCallback | None = None,
+    strategy: Strategy = "sections",
+    direct_max_chars: int = DIRECT_MAX_CHARS,
 ) -> ExtractionOutcome:
-    """Extract every field of an edital. ``pages`` maps page number to normalized text."""
+    """Extract every field of an edital. ``pages`` maps page number to normalized text.
+
+    ``strategy`` chooses the excerpts each call sees: "sections" retrieves the
+    relevant sections per group of fields (the default, see ADR-013); "direct"
+    sends the document from the start, up to ``direct_max_chars``, to every
+    group. "direct" exists as the baseline of the evaluation (eval/variants.toml).
+    """
     # Retrieval is sequential (the embedding model is not thread-safe); only the
     # network-bound LLM calls run concurrently.
-    selections = {
-        group.name: select_chunks(group, chunks, chunk_vectors, embedder) for group in prompt.groups
-    }
+    if strategy == "direct":
+        opening = leading_chunks(chunks, direct_max_chars)
+        selections = {group.name: opening for group in prompt.groups}
+    else:
+        selections = {
+            group.name: select_chunks(group, chunks, chunk_vectors, embedder)
+            for group in prompt.groups
+        }
     match_pages = {number: normalize_for_match(text) for number, text in pages.items()}
 
     runs: dict[str, GroupRun] = {}

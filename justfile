@@ -77,6 +77,13 @@ eval-law:
 analyze +pdfs:
     uv run python scripts/analyze.py {{pdfs}}
 
-# Run the evaluation suite against the golden set (implemented in stage 9)
-eval:
-    @echo "A avaliacao sera implementada na Etapa 9 (ver eval/README.md)."
+# Evaluate the extraction against the golden set and write eval/RESULTADOS.md
+# (calls the real LLM; extra flags: --variants, --limit N, --reuse)
+[working-directory('backend')]
+eval *args:
+    uv run python scripts/eval_extraction.py {{args}}
+
+# Validate the golden set annotations (no LLM calls)
+[working-directory('backend')]
+eval-check:
+    uv run python scripts/eval_extraction.py --check

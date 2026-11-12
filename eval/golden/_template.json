@@ -1,0 +1,40 @@
+{
+  "document": {
+    "file": "data/samples/NOME_DO_ARQUIVO.pdf",
+    "sha256": "COLE_AQUI_O_SHA256",
+    "pncp": "CNPJ-1-SEQUENCIAL/ANO ou null",
+    "pages": 0
+  },
+  "annotation": {
+    "annotator": "SEU NOME",
+    "date": "AAAA-MM-DD",
+    "reviewed": false,
+    "notes": "Dúvidas e decisões de anotação deste edital."
+  },
+  "fields": {
+    "number": { "value": "Concorrência Eletrônica nº 0/2026", "pages": [1] },
+    "modality": { "value": "concorrencia", "pages": [1] },
+    "agency": { "value": "Município de ...", "pages": [1] },
+    "object": { "value": "Resumo do objeto em uma frase", "pages": [1] },
+    "estimated_value": { "value": 0.0, "pages": [1] },
+    "judgment_criterion": { "value": "menor_preco", "pages": [1] },
+    "execution_regime": { "value": "empreitada_por_preco_global", "pages": [1] },
+    "publication_date": { "value": "AAAA-MM-DD", "pages": [1] },
+    "opening": { "value": { "date": "AAAA-MM-DD", "time": "HH:MM" }, "pages": [1] },
+    "impugnation_deadline": { "value": { "date": null, "rule": "até 3 dias úteis antes da data de abertura" }, "pages": [1] },
+    "clarification_deadline": { "value": { "date": null, "rule": "até 3 dias úteis antes da data de abertura" }, "pages": [1] },
+    "execution_period": { "value": { "amount": 0, "unit": "dias" }, "pages": [1] },
+    "bid_guarantee": { "value": { "required": false, "percent": null }, "pages": [1] },
+    "contract_guarantee": { "value": { "required": true, "percent": 5.0 }, "pages": [1] },
+    "site_visit": { "value": "facultativa", "pages": [1] },
+    "consortium_allowed": { "value": null, "pages": [] },
+    "me_epp_exclusive": { "value": false, "pages": [1] }
+  },
+  "requirements": {
+    "qualification_legal": ["Uma exigência por item"],
+    "qualification_fiscal": [],
+    "qualification_technical": [],
+    "qualification_economic": [],
+    "annexes": ["Anexo I - Título"]
+  }
+}

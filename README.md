@@ -3,11 +3,12 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 8 de 12 concluída. Pela interface web, o sistema busca editais no
+> **Estado atual:** Etapa 9 de 12 concluída. Pela interface web, o sistema busca editais no
 > PNCP ou recebe um PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com
 > fundamentação na Lei 14.133/2021 e compara as exigências de habilitação com o perfil de
-> uma empresa. Clicar numa citação abre o PDF na página e destaca o trecho. Ainda não há
-> números de qualidade (Etapa 9).
+> uma empresa. Clicar numa citação abre o PDF na página e destaca o trecho. A avaliação
+> contra um gabarito anotado à mão está pronta (`just eval`); os números dependem do
+> gabarito completo.
 
 ## O problema
 
@@ -41,7 +42,7 @@ um jeito.
 | 6 | Perfil da empresa e aptidão | Concluída |
 | 7 | Integração com o PNCP | Concluída |
 | 8 | Frontend | Concluída |
-| 9 | Avaliação | Pendente |
+| 9 | Avaliação | Concluída (aguarda o gabarito) |
 | 10 | Segurança, governança e custos | Pendente |
 | 11 | Deploy | Pendente |
 | 12 | Documentação e apresentação | Pendente |
@@ -305,6 +306,25 @@ mesmo tipo de serviço que a exigência, e nem vê as quantidades executadas: a 
 comparação com o mínimo são feitas depois, por código. Sem chave da API, a verificação roda
 do mesmo jeito e só os atestados ficam como `nao_verificavel`.
 
+## Avaliação da extração
+
+A extração é medida contra um gabarito anotado à mão (`eval/golden/`, um JSON por edital),
+em quatro variantes: três modelos com extração por seções e um com extração direta do
+documento. O relatório traz acurácia por campo, precisão e recall das exigências de
+habilitação, taxa de citações válidas, custo e tempo por edital, os piores casos e uma
+análise de erros.
+
+| Indicador | Resultado |
+| --- | --- |
+| Acurácia dos campos | a medir |
+| Exigências de habilitação (precisão / recall) | a medir |
+| Citações válidas | a medir |
+| Custo e tempo médios por edital | a medir |
+
+Os números entram aqui depois da primeira rodada com o gabarito completo (15 a 20 editais).
+Como anotar: [eval/ANOTACAO.md](eval/ANOTACAO.md). Como rodar e o que cada número significa:
+[eval/README.md](eval/README.md).
+
 ## Buscar na Lei 14.133/2021
 
 A lei está dividida em 1.410 dispositivos (artigos, parágrafos, incisos e alíneas), cada
@@ -342,7 +362,8 @@ lei está em [data/law/README.md](data/law/README.md).
 | `just analyze ARQUIVO.pdf ...` | Analisa um ou mais editais (campos e riscos) com o LLM real, sem banco (tem custo) |
 | `just index-law` | Indexa a Lei 14.133 no PostgreSQL |
 | `just eval-law` | Mede o recall@5 da busca na lei e gera o relatório |
-| `just eval` | Roda a avaliação (a implementar na Etapa 9) |
+| `just eval` | Avalia a extração contra o gabarito e gera `eval/RESULTADOS.md` (tem custo; `--reuse` refaz sem custo) |
+| `just eval-check` | Confere o gabarito anotado, sem custo |
 
 ## Estrutura
 

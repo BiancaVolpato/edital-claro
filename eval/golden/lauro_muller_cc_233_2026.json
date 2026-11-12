@@ -1,0 +1,170 @@
+{
+  "document": {
+    "file": "data/samples/lauro_muller_cc_233_2026.pdf",
+    "sha256": "8e79641ee2d5f0ce24780b4f466dac43fab7b24deb1a89a45ed5187153260ef3",
+    "pncp": "82558909000124-1-000290/2026",
+    "pages": 28
+  },
+  "annotation": {
+    "annotator": "Exemplo preparado com o assistente de código; precisa de revisão humana",
+    "date": "2026-11-12",
+    "reviewed": false,
+    "notes": "Exemplo de anotação. contract_guarantee ficou nulo: a cláusula 18.1 se chama 'Garantia de Execução Contratual', mas o único subitem (18.1.1) fala só da garantia de proposta, então o edital não informa a garantia contratual. consortium_allowed nulo: o edital não trata de consórcio. publication_date é a data de assinatura do edital (p. 12). O item 3.5 cita um 'Anexo XII' que não existe; não foi anotado como anexo."
+  },
+  "fields": {
+    "number": {
+      "value": "Concorrência Eletrônica nº 233/PMLM/2026",
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "modality": {
+      "value": "concorrencia",
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "agency": {
+      "value": "Município de Lauro Muller",
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "object": {
+      "value": "Execução de obras de terraplenagem, pavimentação em lajotas de concreto e drenagem pluvial da rua Isaac Bertoncini, no bairro Cairú, em Lauro Muller",
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "estimated_value": {
+      "value": 60296.85,
+      "pages": [
+        2
+      ]
+    },
+    "judgment_criterion": {
+      "value": "menor_preco",
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "execution_regime": {
+      "value": "empreitada_por_preco_unitario",
+      "pages": [
+        2
+      ]
+    },
+    "publication_date": {
+      "value": "2026-10-01",
+      "pages": [
+        12
+      ]
+    },
+    "opening": {
+      "value": {
+        "date": "2026-10-19",
+        "time": "09:00"
+      },
+      "pages": [
+        2,
+        3
+      ]
+    },
+    "impugnation_deadline": {
+      "value": {
+        "date": null,
+        "rule": "com antecedência mínima de 3 dias úteis da data de abertura do certame"
+      },
+      "pages": [
+        9
+      ]
+    },
+    "clarification_deadline": {
+      "value": {
+        "date": null,
+        "rule": "com antecedência mínima de 3 dias úteis da data de abertura do certame"
+      },
+      "pages": [
+        9
+      ]
+    },
+    "execution_period": {
+      "value": {
+        "amount": 60,
+        "unit": "dias"
+      },
+      "pages": [
+        16
+      ]
+    },
+    "bid_guarantee": {
+      "value": {
+        "required": false,
+        "percent": null
+      },
+      "pages": [
+        11,
+        17
+      ]
+    },
+    "contract_guarantee": {
+      "value": null,
+      "pages": []
+    },
+    "site_visit": {
+      "value": "facultativa",
+      "pages": [
+        4
+      ]
+    },
+    "consortium_allowed": {
+      "value": null,
+      "pages": []
+    },
+    "me_epp_exclusive": {
+      "value": true,
+      "pages": [
+        2,
+        3
+      ]
+    }
+  },
+  "requirements": {
+    "qualification_legal": [
+      "Prova de inscrição no Cadastro Nacional de Pessoa Jurídica (CNPJ)",
+      "Ato constitutivo, estatuto ou contrato social em vigor, devidamente registrado, e alterações subsequentes ou consolidadas",
+      "Documento com foto do responsável pela empresa e pela assinatura do contrato"
+    ],
+    "qualification_fiscal": [
+      "Declarações do Anexo II (atendimento aos requisitos de habilitação, não impedimento, trabalho de menores, ausência de vínculo com agentes públicos, inclusão de pessoas com deficiência, trabalho infantil ou análogo à escravidão, cobertura dos direitos trabalhistas, responsável legal e contatos)",
+      "Certidões negativas ou positivas com efeito de negativas das Fazendas Federal, Estadual e Municipal",
+      "Certidão de regularidade do FGTS",
+      "Certidão Negativa de Débitos Trabalhistas (CNDT)"
+    ],
+    "qualification_technical": [
+      "Regularidade técnica conforme o Termo de Referência e o item 3.5 do edital (vistoria técnica)",
+      "Não serão permitidos atestados da própria empresa ou do mesmo grupo (autoatestado)"
+    ],
+    "qualification_economic": [
+      "Certidão negativa de falência ou insolvência civil",
+      "Balanço patrimonial e demonstrações contábeis dos dois últimos exercícios sociais, assinados por contador e registrados no CRC",
+      "Demonstração da boa situação financeira pelo Índice de Liquidez Geral (ILG)",
+      "Se ILG < 1, patrimônio líquido mínimo de 10% do valor estimado da contratação"
+    ],
+    "annexes": [
+      "Anexo I - Minuta do contrato, ata de registro de preços ou documento equivalente",
+      "Anexo II - Declaração unificada",
+      "Anexo III - Declaração de enquadramento",
+      "Anexo IV - Modelo de proposta",
+      "Anexo V - Projetos, planilha orçamentária e demais complementos",
+      "Anexo VI - Certificado de realização de vistoria técnica",
+      "Anexo VII - Declaração de opção por não realizar a vistoria técnica",
+      "Anexo - Matriz de risco"
+    ]
+  }
+}

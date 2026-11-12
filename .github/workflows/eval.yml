@@ -1,0 +1,63 @@
+name: Avaliação (manual)
+
+# Runs the extraction evaluation against the golden set. It calls the real LLM and
+# costs money, so it only runs when started by hand (Actions > Avaliação > Run
+# workflow) and needs the ANTHROPIC_API_KEY repository secret. The regular CI only
+# runs the scoring tests, with a fake model.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variants:
+        description: "Variantes separadas por vírgula (vazio = todas de eval/variants.toml)"
+        required: false
+        default: "opus-secoes"
+      limit:
+        description: "Quantos editais do gabarito (vazio = todos)"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Avaliação da extração
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: test
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OCR tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por ghostscript
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Check the golden set
+        run: uv run python scripts/eval_extraction.py --check
+      - name: Evaluate
+        env:
+          VARIANTS: ${{ inputs.variants }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          args=()
+          if [ -n "$VARIANTS" ]; then args+=(--variants "$VARIANTS"); fi
+          if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
+          uv run python scripts/eval_extraction.py "${args[@]}"
+      - name: Upload the report and raw results
+        uses: actions/upload-artifact@v4
+        with:
+          name: avaliacao
+          path: |
+            eval/RESULTADOS.md
+            eval/runs/

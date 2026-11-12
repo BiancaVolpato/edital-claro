@@ -683,3 +683,29 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
 - **Trade-off:** O Markdown é testado no pytest e serve a qualquer cliente. Gerar PDF no
   servidor exigiria uma biblioteca de renderização a mais; a impressão do navegador resolve
   sem dependência, com layout que varia um pouco entre navegadores.
+
+## ADR-035: Avaliação por gabarito anotado e escolha da variante pelos números
+
+- **Etapa:** 9
+- **Contexto:** Até aqui, a qualidade da extração só tinha sido verificada com testes de
+  regras e com um modelo simulado. Escolhas como o modelo padrão (ADR-016) e a extração por
+  seções (ADR-013) foram feitas por argumento, não por medida.
+- **Opções de medida:** (a) olhar resultados à mão; (b) usar outro LLM como juiz; (c)
+  comparar com um gabarito anotado por uma pessoa, com regras fixas de comparação.
+- **Escolha:** (c). Um JSON por edital em `eval/golden/`, validado contra os mesmos tipos da
+  extração e preso ao PDF pelo SHA-256. As regras de comparação (exato para datas, valores e
+  opções; semelhança para textos; pareamento de itens para as exigências) estão em
+  `app/evaluation/scoring.py` e têm testes. `just eval` compara quatro variantes
+  (`eval/variants.toml`): Opus, Sonnet e Haiku com extração por seções, e Opus com
+  extração direta (o início do documento, até 60 mil caracteres, em todas as chamadas).
+- **Regra de decisão:** fica a variante de maior acurácia nos campos, a menos que outra
+  esteja a até 2 pontos percentuais dela e custe menos por edital. O relatório aplica a
+  regra e diz qual variante ela escolhe.
+- **Estado:** **a decidir.** O gabarito tem, por enquanto, um edital de exemplo ainda não
+  revisado, e a avaliação não rodou com o modelo real (falta a chave da API no ambiente de
+  desenvolvimento). Quando houver de 15 a 20 editais anotados, a escolha e os números entram
+  aqui, e o modelo padrão (`LLM_MODEL`) e a estratégia são ajustados se for o caso.
+- **Trade-off:** Anotar dá trabalho e o gabarito pode ter erros (por isso o campo
+  `reviewed` e o aviso de "números preliminares" no relatório). Em troca, os números são
+  reproduzíveis, baratos de recalcular (`--reuse`) e não dependem do julgamento de outro
+  modelo.
