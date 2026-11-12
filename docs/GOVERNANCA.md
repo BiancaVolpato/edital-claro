@@ -38,7 +38,8 @@ Como o sistema trata esses dados:
   usuário (tela "Sobre e limitações") é não enviar documentos sigilosos ou com dados
   pessoais além do edital.
 - **Envio a terceiros.** O texto dos trechos selecionados vai para o provedor de IA
-  configurado (Anthropic) para a análise. Isso é dito na tela "Sobre e limitações". Uma
+  configurado (Anthropic ou OpenAI, conforme `LLM_PROVIDER`) para a análise. Na OpenAI, as
+  chamadas vão com `store=false`, para as respostas não ficarem guardadas por lá. Isso é dito na tela "Sobre e limitações". Uma
   instalação que não possa enviar dados a terceiros precisa trocar o provedor (a interface
   `LLMProvider` permite) ou não usar a análise com IA.
 - **Exemplos no repositório.** Os editais de `data/samples/` são públicos e foram escolhidos

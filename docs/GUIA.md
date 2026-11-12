@@ -91,12 +91,23 @@ no PNCP e envie os PDFs pelo upload.
 
 ## Analisar um edital
 
-A análise chama a API da Anthropic, então precisa de uma chave e tem custo. Coloque a
-chave no arquivo `.env` da raiz:
+A análise chama a API de um provedor de IA, então precisa de uma chave e tem custo. Escolha
+o provedor e coloque a chave no arquivo `.env` da raiz. Com a Anthropic (padrão):
 
 ```
+LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sua-chave
 ```
+
+Com a OpenAI:
+
+```
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sua-chave
+```
+
+Sem `LLM_MODEL`, vale o modelo padrão de cada provedor (`claude-opus-5-5` ou
+`gpt-6.1-sol`). Depois de mudar o `.env`, reinicie o backend.
 
 **Sem Docker**, direto pela linha de comando (não precisa de banco de dados):
 

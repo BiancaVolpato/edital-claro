@@ -89,7 +89,7 @@ flowchart LR
     FE --> API[API FastAPI]
     API --> PNCP[(APIs do PNCP)]
     API --> DB[("PostgreSQL<br/>+ pgvector")]
-    API --> LLM["Claude<br/>(saída estruturada)"]
+    API --> LLM["Claude ou OpenAI<br/>(saída estruturada)"]
 
     subgraph P["Pipeline de análise"]
         direction TB
@@ -104,7 +104,8 @@ flowchart LR
 ```
 
 - **Backend:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy, Alembic, uv.
-- **IA:** Claude pela API da Anthropic, atrás de uma interface `LLMProvider`; embeddings
+- **IA:** Claude (Anthropic) ou modelos da OpenAI, escolhidos por `LLM_PROVIDER`, atrás de
+  uma interface `LLMProvider`; embeddings
   locais (`multilingual-e5-base`); prompts versionados em arquivos com hash.
 - **Banco:** PostgreSQL com pgvector (a Lei 14.133 indexada por dispositivo, com busca
   híbrida vetorial e textual).
@@ -216,7 +217,8 @@ just dev-frontend
 ```
 
 Sem um PostgreSQL rodando, a API sobe normalmente e o `/health` informa
-`"database": "unavailable"`. Para analisar editais, coloque a `ANTHROPIC_API_KEY` no `.env`.
+`"database": "unavailable"`. Para analisar editais, coloque no `.env` a chave do provedor escolhido em `LLM_PROVIDER`
+(`ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`).
 
 Como usar cada funcionalidade, pela interface e pela API: [docs/GUIA.md](docs/GUIA.md).
 

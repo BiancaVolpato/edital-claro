@@ -52,6 +52,8 @@ def test_missing_credentials_are_detected_before_any_request(
 ) -> None:
     for variable in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
         monkeypatch.delenv(variable, raising=False)
+    # The local .env may select another provider.
+    monkeypatch.setattr(get_settings(), "llm_provider", "anthropic")
     monkeypatch.setattr(get_settings(), "anthropic_api_key", None)
 
     with pytest.raises(LLMNotConfiguredError):

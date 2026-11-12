@@ -18,7 +18,7 @@ import threading
 from pydantic import BaseModel
 
 from app.llm.base import LLMError, LLMProvider, LLMResult
-from app.llm.pricing import PRICES_USD_PER_MTOK, estimate_cost_usd
+from app.llm.pricing import estimate_cost_usd, model_prices
 
 # Portuguese text averages about 3.5-4 characters per token; 3 overestimates the
 # input on purpose, so the reservation errs on the safe side.
@@ -47,7 +47,7 @@ class BudgetedLLM:
     def extract[T: BaseModel](self, *, system: str, user: str, schema: type[T]) -> LLMResult[T]:
         if self.limit_usd <= 0:  # no limit configured
             return self._call(system, user, schema)
-        if self.model not in PRICES_USD_PER_MTOK:
+        if model_prices(self.model) is None:
             # Without a price the cost cannot be bounded: refuse instead of guessing.
             raise BudgetExceededError(
                 f"o modelo {self.model} não tem preço cadastrado, então o limite de gasto não "

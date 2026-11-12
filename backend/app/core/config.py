@@ -44,10 +44,13 @@ class Settings(BaseSettings):
     # Upper bound for a chunk, sized to fit the embedding model's input window.
     chunk_max_chars: int = 2000
 
-    # LLM used for extraction. The key is read from ANTHROPIC_API_KEY and never logged.
-    llm_provider: Literal["anthropic"] = "anthropic"
-    llm_model: str = "claude-opus-5-5"
+    # LLM used for extraction, risks and attestations: Anthropic (Claude) or OpenAI.
+    # Without LLM_MODEL, the provider's default applies (app/llm/factory.py). Keys
+    # are read from ANTHROPIC_API_KEY or OPENAI_API_KEY and never logged.
+    llm_provider: Literal["anthropic", "openai"] = "anthropic"
+    llm_model: str | None = None
     anthropic_api_key: SecretStr | None = None
+    openai_api_key: SecretStr | None = None
     # How many extraction calls of one analysis may run at the same time.
     llm_max_concurrency: int = 3
     # Local embedding model used to locate the relevant sections of an edital.

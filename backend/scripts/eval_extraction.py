@@ -29,6 +29,7 @@ from app.extraction.prompts import load_prompt_set
 from app.ingestion.service import default_ocr_engine
 from app.llm.anthropic_provider import AnthropicProvider
 from app.llm.base import LLMProvider
+from app.llm.openai_provider import OpenAIProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "eval"
@@ -55,13 +56,19 @@ class LazyEmbedder:
 
 @cache
 def llm_for(model: str) -> LLMProvider:
-    key = get_settings().anthropic_api_key
+    """The provider of ``model``: Claude models go to Anthropic, the rest to OpenAI."""
+    settings = get_settings()
+    anthropic = model.startswith("claude-")
+    key = settings.anthropic_api_key if anthropic else settings.openai_api_key
+    name = "ANTHROPIC_API_KEY" if anthropic else "OPENAI_API_KEY"
     if key is None or not key.get_secret_value():
         sys.exit(
-            "ANTHROPIC_API_KEY não está configurada no .env. Para refazer o relatório com os "
-            "resultados já salvos, use --reuse."
+            f"{name} não está configurada no .env (necessária para {model}). Para refazer o "
+            "relatório com os resultados já salvos, use --reuse."
         )
-    return AnthropicProvider(model=model, api_key=key.get_secret_value())
+    if anthropic:
+        return AnthropicProvider(model=model, api_key=key.get_secret_value())
+    return OpenAIProvider(model=model, api_key=key.get_secret_value())
 
 
 def main() -> None:

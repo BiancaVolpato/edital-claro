@@ -47,7 +47,7 @@ para o repositório: os valores ficam nos painéis.
 
 ### 0. Gerar os snapshots da demo (uma vez, custa dinheiro)
 
-A demo mostra análises reais. Elas são geradas localmente, com a chave da Anthropic no
+A demo mostra análises reais. Elas são geradas localmente, com a chave do provedor de IA (Anthropic ou OpenAI) no
 `.env`, e commitadas em `data/demo/`:
 
 ```bash

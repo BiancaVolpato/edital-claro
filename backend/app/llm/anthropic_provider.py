@@ -44,7 +44,11 @@ class AnthropicProvider(LLMProvider):
                 output_format=schema,
             )
         except anthropic.AuthenticationError as exc:
-            raise LLMNotConfiguredError("Anthropic API key was rejected") from exc
+            # Shown in the interface, so in Portuguese.
+            raise LLMNotConfiguredError(
+                "A Anthropic recusou a chave da API. Confira ANTHROPIC_API_KEY no .env: "
+                "chaves da Anthropic começam com sk-ant- e são criadas em console.anthropic.com."
+            ) from exc
         except anthropic.RateLimitError as exc:
             raise LLMError("rate limited by the Anthropic API") from exc
         except anthropic.APIStatusError as exc:

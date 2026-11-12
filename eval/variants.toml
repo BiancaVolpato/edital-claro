@@ -1,7 +1,8 @@
 # Variants compared by `just eval`. The first one is the reference: its errors are
 # the ones detailed in the report. Prices per model are in backend/app/llm/pricing.py.
 #
-#   model      LLM used for every extraction call
+#   model      LLM used for every extraction call (claude-* goes to Anthropic, the
+#              rest to OpenAI; each needs its key in .env)
 #   strategy   "sections": retrieve the relevant sections per group of fields (ADR-013)
 #              "direct":   send the document from the start, up to 60 thousand characters
 
@@ -24,3 +25,13 @@ description = "Modelo mais barato, com extração por seções"
 model = "claude-opus-5-5"
 strategy = "direct"
 description = "Modelo padrão recebendo o início do documento, sem busca por seções"
+
+[variants.gpt-sol-secoes]
+model = "gpt-6.1-sol"
+strategy = "sections"
+description = "OpenAI, modelo intermediário (padrão quando LLM_PROVIDER=openai), com extração por seções"
+
+[variants.gpt-luna-secoes]
+model = "gpt-6-luna"
+strategy = "sections"
+description = "OpenAI, modelo mais barato, com extração por seções"

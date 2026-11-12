@@ -867,3 +867,26 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   por isso ele fica abaixo do valor atual e não é meta. As telas do README dependem dos
   snapshots reais da demo e ficam de fora até eles existirem, em vez de mostrar dados de
   teste como se fossem resultado.
+
+## ADR-044: OpenAI como segundo provedor de IA
+
+- **Etapa:** pós-12
+- **Contexto:** Quem usa o projeto pode ter crédito na OpenAI e não na Anthropic. A
+  interface `LLMProvider` (ADR-016) foi feita para isso: o resto da aplicação não sabe qual
+  provedor responde.
+- **Opções:** (a) só Anthropic; (b) OpenAI pela Chat Completions; (c) OpenAI pela Responses
+  API com Structured Outputs (`responses.parse`), o caminho que a documentação oficial
+  recomenda para saída num esquema Pydantic.
+- **Escolha:** (c), com `LLM_PROVIDER=openai` e `OPENAI_API_KEY`. O modelo padrão é
+  `gpt-6.1-sol`, que a página de modelos descreve como próximo do topo de linha por um custo
+  menor (US$ 2 / US$ 10 por milhão de tokens, o preço do Sonnet). Todos os esquemas
+  enviados ao modelo passam no modo estrito da OpenAI sem mudança (todos os campos
+  obrigatórios, sem propriedades extras), e um teste garante isso. As chamadas vão com
+  `store=false`. Recusa, resposta cortada e chave recusada viram os mesmos erros do
+  provedor da Anthropic. A tabela de preços ganhou os modelos da OpenAI (página oficial,
+  12/11/2026), e um nome com data no fim (versão específica que a API devolve) é cobrado
+  como o modelo de que deriva. Na avaliação, modelos `claude-*` vão para a Anthropic e os
+  outros para a OpenAI; há duas variantes da OpenAI em `eval/variants.toml`.
+- **Trade-off:** Mais um SDK nas dependências e uma tabela de preços a manter. Os prompts
+  foram escritos e ajustados com o Claude; a qualidade com a OpenAI só vale depois de
+  medida com `just eval`.

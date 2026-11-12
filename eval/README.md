@@ -27,7 +27,8 @@ just eval
 ```
 
 roda todas as variantes em todos os editais e escreve `RESULTADOS.md`. Chama o modelo de
-verdade: precisa de `ANTHROPIC_API_KEY` no `.env` e tem custo. Para gastar menos:
+verdade: precisa no `.env` da chave de cada provedor usado nas variantes (`ANTHROPIC_API_KEY`
+para os modelos `claude-*`, `OPENAI_API_KEY` para os outros) e tem custo. Para gastar menos:
 
 ```bash
 just eval --variants opus-secoes --limit 3
@@ -57,5 +58,6 @@ se tiver sido produzido pelo mesmo prompt e pelo mesmo modelo.
 
 O CI comum roda só os testes das regras de comparação, com um modelo simulado. A avaliação
 de verdade roda à mão: no GitHub, Actions > "Avaliação (manual)" > Run workflow, com o
-segredo `ANTHROPIC_API_KEY` configurado no repositório. Por padrão ela roda uma variante em
+segredo `ANTHROPIC_API_KEY` (e `OPENAI_API_KEY`, para as variantes da OpenAI) configurado no
+repositório. Por padrão ela roda uma variante em
 3 editais, e o relatório fica disponível como artefato da execução.
