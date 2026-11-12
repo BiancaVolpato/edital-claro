@@ -762,3 +762,90 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   passaram para o português, já que aparecem na interface.
 - **Trade-off:** Editais com mais de 300 páginas (raros; os anexos técnicos costumam vir em
   arquivos separados) são recusados com uma mensagem clara; o limite é configurável.
+
+## ADR-039: Modo demonstração com snapshots de análises reais
+
+- **Etapa:** 11
+- **Contexto:** Quem avalia o projeto precisa ver resultados sem esperar uma análise (alguns
+  minutos) e sem gastar tokens. Uma demo pública que aceitasse uploads seria uma conta de IA
+  aberta para qualquer visitante, e o modelo de embeddings (PyTorch, cerca de 1,5 GB em
+  memória) não cabe numa instância gratuita de 512 MB.
+- **Opções:** (a) demo com análises reais, mas com chave e limite de gasto baixo; (b)
+  resultados escritos à mão no banco; (c) snapshots de análises feitas pelo pipeline real,
+  gravados em JSON no repositório e carregados no banco ao subir; (d) dump SQL do banco.
+- **Escolha:** (c). `scripts/demo.py generate` analisa três editais de `data/samples` com a
+  IA real, verifica o perfil de exemplo contra cada um e grava `data/demo/<edital>.json`
+  com tudo o que a análise guardou (campos, citações, riscos, uso por chamada, versões e
+  hashes dos prompts). O PDF não é copiado: o snapshot aponta o arquivo e o SHA-256, e o
+  seed roda a ingestão normal, então páginas e trechos saem do mesmo código. O seed é
+  idempotente e roda em todo start com `DEMO_MODE=true`; `demo.py reset` apaga documentos,
+  análises e perfis e semeia de novo. Em modo demo, upload, importação do PNCP, nova
+  análise e busca na lei respondem 403 com explicação; a aptidão roda sem a IA (só as
+  regras), e a interface mostra um aviso e desativa os botões.
+- **Trade-off:** Os resultados da demo são de uma data e de uma versão do prompt (que o
+  snapshot registra); mudar o pipeline pede `generate` de novo, com custo. (b) seria
+  inventar saídas de IA. (d) amarraria a demo ao esquema do banco de uma data, enquanto o
+  JSON passa pelas migrações atuais. Um teste confere que todo snapshot commitado aponta um
+  PDF existente com o mesmo hash.
+
+## ADR-040: Rate limit atrás do Vercel com segredo compartilhado
+
+- **Etapa:** 11
+- **Contexto:** O rate limit (ADR-037) identifica o visitante pelo X-Forwarded-For quando a
+  conexão vem de um proxy confiável, listado por endereço. No deploy, o frontend roda em
+  funções do Vercel, sem endereço fixo, e o backend fica atrás do balanceador do Render.
+  Sem ajuste, todos os visitantes contariam como um só (o endereço do Vercel).
+- **Opções:** (a) confiar em qualquer X-Forwarded-For (o visitante escolheria a própria
+  identidade); (b) listar as faixas de IP do Vercel (não são fixas nem publicadas para o
+  plano gratuito); (c) o servidor do frontend prova quem é com um segredo e informa o
+  endereço do visitante num cabeçalho próprio.
+- **Escolha:** (c). Com `PROXY_TOKEN` configurado nos dois lados e `CLIENT_IP_HEADER` no
+  frontend, o proxy do Next envia `X-Edital-Proxy-Token` e `X-Edital-Client-IP`, este lido
+  do cabeçalho que o Vercel define e sobrescreve (`x-real-ip`, segundo a documentação de
+  request headers do Vercel). O backend compara o segredo em tempo constante e só então usa
+  o endereço, se for um IP válido. Sem as variáveis, vale o comportamento anterior
+  (docker-compose).
+- **Trade-off:** Mais um segredo para manter igual em dois serviços. Quem tiver o segredo
+  escolhe a identidade no rate limit, mas não ganha acesso a nada além disso.
+
+## ADR-041: Hospedagem da demo: Render (backend) + Neon (Postgres) + Vercel (frontend)
+
+- **Etapa:** 11
+- **Contexto:** A demo precisa de backend com Docker, Postgres com pgvector e o frontend,
+  de graça ou quase, para um projeto de portfólio. Números das páginas oficiais de preços e
+  limites, consultadas em 12/11/2026 (detalhes em `docs/DEPLOY.md`).
+- **Opções:**
+  - **Render:** web service gratuito (512 MB, 0,1 CPU) com Docker e Blueprint em
+    `render.yaml`; dorme após 15 min sem tráfego e leva cerca de 1 min para acordar. O
+    Postgres gratuito expira em 30 dias.
+  - **Railway:** plano Free com US$ 1 de crédito por mês e 0,5 GB de RAM por serviço; o
+    Hobby custa US$ 5/mês com US$ 5 de uso incluído. RAM a US$ 10 por GB/mês: o backend
+    ligado o mês todo já consome o crédito do Hobby.
+  - **Fly.io:** sem plano gratuito para contas novas; máquina de 512 MB por US$ 3,69/mês e
+    Postgres gerenciado a partir de US$ 38/mês (contas pessoais com fatura abaixo de US$ 5
+    têm a cobrança dispensada, mas o banco teria de ser mantido à mão).
+  - **Neon** (só banco): plano Free com 1 GB por projeto, pgvector, computação que dorme
+    após 5 min; a página de planos não fala em expiração.
+- **Escolha:** Backend no Render (gratuito, imagem `demo` da ADR-042), banco no Neon
+  (gratuito) e frontend no Vercel (Hobby, gratuito para uso pessoal e não comercial).
+- **Trade-off:** Três contas em vez de uma, e a primeira visita depois de um tempo parada
+  espera o Render acordar (cerca de 1 min). Em troca, custo zero e um banco que não expira
+  em 30 dias, o que quebraria o link do portfólio sem aviso. Para tirar a espera, o plano
+  pago mais simples do Render (US$ 7/mês, sem dormir) resolve sem mudar nada no código.
+
+## ADR-042: Imagens multi-stage, com uma variante leve para a demo
+
+- **Etapa:** 11
+- **Contexto:** A imagem de desenvolvimento do backend tinha uv, OCR e PyTorch numa camada
+  só; a do frontend levava `node_modules` inteiro. A demo gratuita tem 512 MB de RAM.
+- **Escolha:** Backend em dois estágios (dependências com uv, depois só o virtualenv, o
+  código e os dados num `python:3.12-slim`, rodando como usuário sem privilégios), com o
+  argumento `IMAGE_VARIANT`: `full` (padrão, com OCR e embeddings) ou `demo` (sem
+  Tesseract e sem o pacote de embeddings: sentence-transformers, PyTorch e as dependências
+  usadas só por eles, removidos com `uv sync --no-install-package`, sem mexer no lock). O
+  contexto de build passou a ser a raiz do repositório, com `.dockerignore` em lista de
+  permissão (só entra o que a imagem copia; `.env` nunca). Frontend em três estágios, com
+  o servidor `standalone` do Next. O CI constrói as três imagens e sobe a demo contra um
+  Postgres para conferir que responde pelo frontend.
+- **Trade-off:** Um argumento de build a mais e um Dockerfile com um `if`. Duas imagens
+  separadas seriam mais explícitas, mas duplicariam quase tudo.

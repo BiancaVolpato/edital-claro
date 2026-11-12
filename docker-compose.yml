@@ -16,7 +16,10 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    # Built from the repository root: the image also carries data/ (law, samples, demo).
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -33,8 +36,6 @@ services:
     volumes:
       - uploads:/data/uploads
       - huggingface:/data/huggingface
-      # Official text of the Lei 14.133 and its cached embeddings (read-only).
-      - ./data/law:/data/law:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -49,7 +50,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   frontend:
     build: ./frontend

@@ -13,7 +13,12 @@ def test_health_reports_database_ok(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": __version__, "database": "ok"}
+    assert response.json() == {
+        "status": "ok",
+        "version": __version__,
+        "database": "ok",
+        "demo": False,
+    }
 
 
 def test_health_stays_up_when_database_is_down(client: TestClient) -> None:

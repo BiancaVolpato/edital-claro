@@ -11,18 +11,14 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import __version__
 from app.api.profiles import get_profile_or_404
 from app.core.config import get_settings
 from app.db.models import Analysis, AnalysisStatus, EligibilityCheck
 from app.db.session import get_session
 from app.eligibility.profile import CompanyProfileData
-from app.eligibility.prompts import load_eligibility_prompt
+from app.eligibility.records import record_eligibility_check
 from app.eligibility.schemas import EligibilityReport
-from app.eligibility.service import evaluate_eligibility
-from app.extraction.schemas import EditalExtraction
-from app.llm.base import MAX_OUTPUT_TOKENS, LLMNotConfiguredError, LLMProvider
-from app.llm.budget import BudgetedLLM
+from app.llm.base import LLMNotConfiguredError, LLMProvider
 from app.llm.factory import get_llm_provider
 from app.reports.markdown import render_eligibility
 
@@ -33,7 +29,12 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def optional_llm() -> LLMProvider | None:
-    """Without credentials the check still runs; only the attestation comparison is skipped."""
+    """Without credentials the check still runs; only the attestation comparison is skipped.
+
+    The public demo never calls the LLM, so visitors cannot spend money with it.
+    """
+    if get_settings().demo_mode:
+        return None
     try:
         return get_llm_provider()
     except LLMNotConfiguredError:
@@ -112,38 +113,7 @@ def check_eligibility(
             f"A análise ainda não tem os campos extraídos (status: {analysis.status}).",
         )
     profile_row = get_profile_or_404(session, body.profile_id)
-    profile = CompanyProfileData.model_validate(profile_row.data)
-    prompt = load_eligibility_prompt(get_settings().eligibility_prompt_version)
-
-    settings = get_settings()
-    budgeted = (
-        BudgetedLLM(llm, settings.eligibility_max_cost_usd, MAX_OUTPUT_TOKENS) if llm else None
-    )
-    outcome = evaluate_eligibility(
-        extraction=EditalExtraction.model_validate(analysis.result),
-        profile=profile,
-        llm=budgeted,
-        prompt=prompt,
-        today=reference_today,
-    )
-    run = outcome.run
-    check = EligibilityCheck(
-        analysis_id=analysis.id,
-        profile_id=profile_row.id,
-        profile_snapshot=profile.model_dump(mode="json"),
-        report=outcome.report.model_dump(mode="json"),
-        prompt_version=prompt.version,
-        prompt_hash=prompt.content_hash,
-        llm_model=run.model if run else None,
-        input_tokens=run.input_tokens if run else 0,
-        output_tokens=run.output_tokens if run else 0,
-        cost_usd=run.cost_usd if run else 0.0,
-        cost_limit_usd=settings.eligibility_max_cost_usd or None,
-        app_version=__version__,
-    )
-    session.add(check)
-    session.commit()
-    session.refresh(check)
+    check, outcome = record_eligibility_check(session, analysis, profile_row, llm, reference_today)
     logger.info(
         "eligibility checked",
         extra={
@@ -151,7 +121,7 @@ def check_eligibility(
             "eligibility_id": str(check.id),
             "verdict": outcome.report.summary.verdict,
             "counts": outcome.report.summary.counts,
-            "prompt_hash": prompt.content_hash,
+            "prompt_hash": check.prompt_hash,
             "input_tokens": check.input_tokens,
             "output_tokens": check.output_tokens,
             "cost_usd": check.cost_usd,

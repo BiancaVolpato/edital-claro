@@ -85,6 +85,18 @@ export default function AboutPage() {
           envie documentos sigilosos. As marcações do checklist ficam só no seu navegador.
         </p>
       </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Demonstração pública</h2>
+        <p>
+          Na demonstração, três editais de exemplo já foram analisados pela IA, com o pipeline
+          real, e os resultados ficam guardados para você ver sem espera e sem custo. Por isso
+          envio de PDF, importação do PNCP e novas análises ficam desativados. Perfis e
+          verificações de aptidão funcionam, mas sem a etapa de IA (a comparação de atestados
+          fica como “Verificar”). Não há login: não cadastre dados reais de empresas. Os dados
+          criados por visitantes são apagados quando a demonstração é restaurada.
+        </p>
+      </section>
     </main>
   );
 }

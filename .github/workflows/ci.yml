@@ -82,3 +82,58 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+
+  images:
+    name: Docker images (build and demo smoke test)
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: edital
+          POSTGRES_PASSWORD: edital
+          POSTGRES_DB: edital_demo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edital -d edital_demo"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend (demo)
+        run: docker build -f backend/Dockerfile --build-arg IMAGE_VARIANT=demo -t edital-backend:demo .
+      - name: Build backend (full)
+        run: docker build -f backend/Dockerfile -t edital-backend:full .
+      - name: Build frontend
+        run: docker build -t edital-frontend frontend
+      - name: Image sizes
+        run: docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep edital
+      - name: Demo image has no embedding stack, full image has it
+        run: |
+          docker run --rm edital-backend:demo python -c "import importlib.util as u, sys; sys.exit(u.find_spec('torch') is not None)"
+          docker run --rm edital-backend:full python -c "import sentence_transformers"
+      - name: Start the demo (backend + frontend)
+        run: |
+          docker run -d --name api --network host \
+            -e DATABASE_URL=postgres://edital:edital@localhost:5432/edital_demo \
+            -e DEMO_MODE=true -e PORT=8000 edital-backend:demo
+          docker run -d --name web --network host -e API_URL=http://localhost:8000 edital-frontend
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 2; done
+      - name: Demo answers through the frontend
+        run: |
+          set -e
+          curl -sf http://localhost:3000/api/health | grep -q '"demo":true'
+          expected=$(ls data/demo/*.json 2>/dev/null | wc -l)
+          analyses=$(curl -sf http://localhost:3000/api/analyses | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+          echo "analyses: $analyses (snapshots: $expected)"
+          test "$analyses" = "$expected"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/documents/x/analyze)
+          test "$code" = "403"
+          curl -sf http://localhost:3000/ | grep -q "Edital Claro"
+      - name: Logs
+        if: always()
+        run: |
+          docker logs api || true
+          docker logs web || true

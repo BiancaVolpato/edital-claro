@@ -87,3 +87,23 @@ eval *args:
 [working-directory('backend')]
 eval-check:
     uv run python scripts/eval_extraction.py --check
+
+# Load the demo snapshots (data/demo) into the database; safe to run again
+[working-directory('backend')]
+demo-seed:
+    uv run python scripts/demo.py seed
+
+# Delete documents, analyses and profiles, then load the demo snapshots again
+[working-directory('backend')]
+demo-reset:
+    uv run python scripts/demo.py reset --yes
+
+# Analyze the demo editais with the real LLM and write their snapshots (costs money)
+[working-directory('backend')]
+demo-generate:
+    uv run python scripts/demo.py generate --yes
+
+# Write one analysis of the database as data/demo/NAME.json
+[working-directory('backend')]
+demo-export analysis name:
+    uv run python scripts/demo.py export {{analysis}} {{name}}

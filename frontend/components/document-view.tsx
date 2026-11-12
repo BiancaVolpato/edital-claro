@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { fetcher, postJson } from "@/lib/client";
+import { DEMO_ACTION_OFF, useDemo } from "@/lib/demo";
 import { brDateTime, brl } from "@/lib/format";
 import type { Analysis, AnalysisSummary, DocumentDetail } from "@/lib/types";
 
 export function DocumentView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const demo = useDemo();
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -119,7 +121,8 @@ export function DocumentView({ params }: { params: Promise<{ id: string }> }) {
                 <AlertDescription>{startError}</AlertDescription>
               </Alert>
             )}
-            <Button size="lg" onClick={analyze} disabled={starting}>
+            {demo && <p className="text-sm text-muted-foreground">{DEMO_ACTION_OFF}</p>}
+            <Button size="lg" onClick={analyze} disabled={demo || starting}>
               {starting ? "Iniciando…" : analyses?.length ? "Analisar de novo" : "Analisar com IA"}
             </Button>
             {analyses && analyses.length > 0 && (

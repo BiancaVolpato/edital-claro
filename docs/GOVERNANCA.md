@@ -126,6 +126,10 @@ humana importam mais que o prompt.
   sistema, nunca um endereço vindo da resposta.
 - **Rate limit:** por IP, 120 requisições por minuto em geral e 30 por hora nas rotas que
   custam dinheiro ou consultam o PNCP. Resposta 429 com `Retry-After`.
+  Atrás do Vercel, o frontend identifica o visitante com um segredo compartilhado
+  (`PROXY_TOKEN`, ADR-040).
+- **Demonstração pública:** com `DEMO_MODE=true`, nada que gaste com a IA pode ser
+  disparado por visitantes; a demo só mostra análises já feitas (ADR-039).
 - **Segredos:** só no `.env` (fora do Git); `.env.example` sem valores reais.
 - **Logs:** id de requisição gerado pelo servidor (não aceito do cliente), sem conteúdo de
   documentos.

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app import __version__
+from app.core.config import get_settings
 from app.db.session import check_database
 
 router = APIRouter(tags=["health"])
@@ -15,6 +16,8 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str
     database: Literal["ok", "unavailable"]
+    # Public demonstration: the interface hides the actions the server refuses.
+    demo: bool
 
 
 @router.get("/health")
@@ -29,4 +32,5 @@ def health(database_ok: Annotated[bool, Depends(check_database)]) -> HealthRespo
         status="ok",
         version=__version__,
         database="ok" if database_ok else "unavailable",
+        demo=get_settings().demo_mode,
     )

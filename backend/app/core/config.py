@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py -> repo root is three levels above this file's directory.
@@ -25,8 +25,15 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # Local development default; real deployments must override it via DATABASE_URL.
+    # Hosting platforms hand out "postgres://" or "postgresql://" URLs; they are
+    # rewritten to name the driver this project uses (psycopg 3).
     database_url: str = "postgresql+psycopg://edital:edital@localhost:5432/edital_claro"
+    # Databases that scale to zero (e.g. Neon's free plan) take a moment to wake up.
     database_connect_timeout_seconds: int = 2
+
+    # Public demonstration: analyses come from committed snapshots (data/demo), and
+    # whatever would cost money or need the embedding model is refused. See ADR-039.
+    demo_mode: bool = False
 
     # Where uploaded PDFs are kept (named by their sha256, never by the client's filename).
     storage_dir: Path = _REPO_ROOT / "data" / "uploads"
@@ -67,6 +74,9 @@ class Settings(BaseSettings):
     rate_limit_costly_per_hour: int = 30
     # Addresses of proxies whose X-Forwarded-For header is trusted (the frontend).
     trusted_proxies: list[str] = ["127.0.0.1", "::1"]
+    # Shared secret of the frontend server when its address is not fixed (e.g. Vercel):
+    # requests carrying it may name the visitor's address in X-Edital-Client-IP.
+    proxy_token: SecretStr | None = None
 
     # PNCP (Portal Nacional de Contratações Públicas): public APIs, no credentials.
     # Paths follow the official OpenAPI documents of each API.
@@ -81,6 +91,14 @@ class Settings(BaseSettings):
     pncp_cache_ttl_seconds: int = 3600
     # Upper bound of result pages read per modality in one search (50 results each).
     pncp_search_max_pages: int = 10
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, value: str) -> str:
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value.removeprefix(prefix)
+        return value
 
 
 @lru_cache

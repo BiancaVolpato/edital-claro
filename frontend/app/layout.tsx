@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { DemoBanner } from "@/components/demo-banner";
 import { SiteHeader } from "@/components/site-header";
 
 import "./globals.css";
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Pular para o conteúdo
         </a>
         <SiteHeader />
+        <DemoBanner />
         <div id="conteudo" className="flex flex-1 flex-col">
           {children}
         </div>

@@ -9,8 +9,14 @@ The client IP is the connection's address, unless the connection comes from a
 trusted proxy (the frontend's server, which forwards browser calls): then the
 X-Forwarded-For header is read from the right, skipping trusted addresses, so a
 client cannot pick its own identity by sending the header.
+
+A frontend whose address is not fixed (a serverless platform such as Vercel)
+cannot be listed as a trusted proxy. It proves itself with a shared secret
+instead (PROXY_TOKEN) and names the visitor in X-Edital-Client-IP, taken from
+the header its platform sets and overwrites (see ADR-040).
 """
 
+import hmac
 import ipaddress
 import math
 import re
@@ -32,6 +38,8 @@ COSTLY_ROUTES: list[tuple[str, re.Pattern[str]]] = [
     ("GET", re.compile(r"^/pncp/search$")),
 ]
 EXEMPT_PATHS = {"/health"}
+PROXY_TOKEN_HEADER = "x-edital-proxy-token"
+CLIENT_IP_HEADER = "x-edital-client-ip"
 
 
 @dataclass(frozen=True)
@@ -47,12 +55,14 @@ class RateLimiter:
         per_minute: int,
         costly_per_hour: int,
         trusted_proxies: list[str],
+        proxy_token: str | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.general = Window("geral", per_minute, 60.0)
         self.costly = Window("custosa", costly_per_hour, 3600.0)
         # Addresses or networks (CIDR), e.g. "127.0.0.1" or "172.16.0.0/12".
         self.trusted = [ipaddress.ip_network(entry, strict=False) for entry in trusted_proxies]
+        self.proxy_token = proxy_token or None
         self._clock = clock
         self._hits: dict[tuple[str, str], deque[float]] = {}
         self._lock = threading.Lock()
@@ -64,7 +74,23 @@ class RateLimiter:
             return False
         return any(ip in network for network in self.trusted)
 
-    def client_ip(self, peer: str | None, forwarded_for: str | None) -> str:
+    def has_valid_token(self, token: str | None) -> bool:
+        if not self.proxy_token or not token:
+            return False
+        return hmac.compare_digest(token.encode(), self.proxy_token.encode())
+
+    def client_ip(
+        self,
+        peer: str | None,
+        forwarded_for: str | None,
+        token: str | None = None,
+        named_client: str | None = None,
+    ) -> str:
+        if named_client and self.has_valid_token(token):
+            try:
+                return str(ipaddress.ip_address(named_client.strip()))
+            except ValueError:
+                pass
         if self.is_trusted(peer) and forwarded_for:
             hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
             for hop in reversed(hops):
@@ -109,6 +135,8 @@ def rate_limit_middleware(
         client = limiter.client_ip(
             request.client.host if request.client else None,
             request.headers.get("x-forwarded-for"),
+            request.headers.get(PROXY_TOKEN_HEADER),
+            request.headers.get(CLIENT_IP_HEADER),
         )
         wait = limiter.check(client, request.method, path)
         if wait is not None:

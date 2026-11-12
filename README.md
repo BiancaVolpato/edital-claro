@@ -44,7 +44,7 @@ um jeito.
 | 8 | Frontend | Concluída |
 | 9 | Avaliação | Concluída (aguarda o gabarito) |
 | 10 | Segurança, governança e custos | Concluída |
-| 11 | Deploy | Pendente |
+| 11 | Deploy | Concluída (aguarda as contas e os snapshots) |
 | 12 | Documentação e apresentação | Pendente |
 
 ## Stack
@@ -72,6 +72,12 @@ docker compose up --build
 - Frontend: <http://localhost:3000>
 - API: <http://localhost:8000/health>
 - Documentação interativa da API: <http://localhost:8000/docs>
+
+Para ver a demonstração (três editais já analisados, sem chave da API):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build
+```
 
 ### Sem Docker (backend e frontend locais)
 
@@ -365,6 +371,8 @@ lei está em [data/law/README.md](data/law/README.md).
 | `just eval-law` | Mede o recall@5 da busca na lei e gera o relatório |
 | `just eval` | Avalia a extração contra o gabarito e gera `eval/RESULTADOS.md` (tem custo; `--reuse` refaz sem custo) |
 | `just eval-check` | Confere o gabarito anotado, sem custo |
+| `just demo-seed` / `just demo-reset` | Carrega os snapshots da demo no banco / apaga os dados e carrega de novo |
+| `just demo-generate` | Analisa os editais da demo com o LLM real e grava os snapshots (tem custo) |
 
 ## Estrutura
 
@@ -375,6 +383,14 @@ eval/       Gabarito, scripts e relatórios de avaliação
 data/       Editais de exemplo e caches locais
 docs/       Decisões de arquitetura e guias
 ```
+
+## Demonstração pública e deploy
+
+A demo pública roda com `DEMO_MODE=true`: mostra três editais já analisados pela IA, sem
+espera nem custo, e recusa envio de PDF, importação e novas análises. A hospedagem
+recomendada é Render (backend, imagem Docker leve), Neon (Postgres) e Vercel (frontend),
+todos no plano gratuito. A comparação das opções, o passo a passo e a operação (seed,
+reset, atualizar as análises) estão em [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Segurança, governança e custos
 

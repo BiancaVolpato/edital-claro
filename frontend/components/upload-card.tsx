@@ -7,6 +7,7 @@ import { useId, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client";
+import { DEMO_ACTION_OFF, useDemo } from "@/lib/demo";
 import type { DocumentDetail } from "@/lib/types";
 import { cn } from "cn";
 
@@ -14,6 +15,7 @@ const MAX_MB = 50;
 
 export function UploadCard() {
   const router = useRouter();
+  const demo = useDemo();
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -90,7 +92,8 @@ export function UploadCard() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <Button onClick={send} disabled={!file || sending} size="lg">
+      {demo && <p className="text-sm text-muted-foreground">{DEMO_ACTION_OFF}</p>}
+      <Button onClick={send} disabled={demo || !file || sending} size="lg">
         {sending ? "Enviando…" : "Enviar edital"}
       </Button>
     </div>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useIsClient } from "@/lib/browser";
 import { api, postJson } from "@/lib/client";
+import { DEMO_ACTION_OFF, useDemo } from "@/lib/demo";
 import { brDate, brl } from "@/lib/format";
 import type { PncpImportResponse, PncpSearchResponse, Procurement } from "@/lib/types";
 
@@ -20,6 +21,7 @@ function daysAgo(days: number): string {
 }
 
 export function PncpSearch() {
+  const demo = useDemo();
   const router = useRouter();
   const ids = { from: useId(), to: useId(), uf: useId(), city: useId(), q: useId() };
   // The default period (last 15 days) depends on today's date, so it is only
@@ -139,7 +141,8 @@ export function PncpSearch() {
                 <Button
                   variant="outline"
                   onClick={() => importEdital(p)}
-                  disabled={importing !== null}
+                  disabled={demo || importing !== null}
+                  title={demo ? DEMO_ACTION_OFF : undefined}
                   aria-label={`Importar o edital: ${p.object}`}
                 >
                   {importing === p.control_number ? "Importando…" : "Importar edital"}

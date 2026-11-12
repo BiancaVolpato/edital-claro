@@ -10,6 +10,12 @@ const API_URL = process.env.API_URL ?? "http://localhost:8000";
 // so the backend's rate limit counts each visitor, not this server.
 const REQUEST_HEADERS = ["content-type", "accept", "x-forwarded-for"];
 const RESPONSE_HEADERS = ["content-type", "content-disposition", "content-length", "retry-after"];
+// On a platform whose servers have no fixed address (Vercel), the backend cannot
+// list this server as a trusted proxy. Instead this server proves itself with a
+// shared secret and names the visitor, read from a header the platform sets and
+// overwrites (Vercel: x-real-ip), so a visitor cannot choose it. See ADR-040.
+const PROXY_TOKEN = process.env.PROXY_TOKEN;
+const CLIENT_IP_HEADER = process.env.CLIENT_IP_HEADER;
 
 async function forward(
   request: NextRequest,
@@ -25,6 +31,11 @@ async function forward(
   for (const name of REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
+  }
+  const visitor = CLIENT_IP_HEADER ? request.headers.get(CLIENT_IP_HEADER) : null;
+  if (PROXY_TOKEN && visitor) {
+    headers.set("x-edital-proxy-token", PROXY_TOKEN);
+    headers.set("x-edital-client-ip", visitor.split(",")[0].trim());
   }
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 

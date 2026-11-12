@@ -1,0 +1,16 @@
+# Build context of the backend image (docker build -f backend/Dockerfile .).
+# Allowlist: only what the image copies goes in, so .env, uploads and caches never do.
+*
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/.python-version
+!backend/alembic.ini
+!backend/alembic/
+!backend/app/
+!backend/prompts/
+!backend/scripts/
+!data/law/
+!data/samples/*.pdf
+!data/demo/
+!data/profiles/
+**/__pycache__

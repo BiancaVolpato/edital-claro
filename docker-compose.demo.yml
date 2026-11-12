@@ -1,0 +1,11 @@
+# The public demonstration, locally: the light backend image with DEMO_MODE on.
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build
+# It serves the analyses of data/demo; uploads and new analyses are refused.
+services:
+  backend:
+    build:
+      args:
+        IMAGE_VARIANT: demo
+    environment:
+      DEMO_MODE: "true"
+      ANTHROPIC_API_KEY: ""
