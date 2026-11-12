@@ -27,6 +27,7 @@ dependencies = [
 dev = [
     "mypy>=1.13",
     "pytest>=8.3",
+    "pytest-cov>=7.1.0",
     "ruff>=0.8",
 ]
 
@@ -64,6 +65,13 @@ plugins = ["pydantic.mypy"]
 files = ["app", "alembic", "tests", "scripts"]
 # PyMuPDF ships without complete type annotations.
 untyped_calls_exclude = ["pymupdf"]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

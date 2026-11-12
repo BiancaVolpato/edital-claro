@@ -1,58 +1,173 @@
 # Edital Claro
 
-Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
-cita a página e o trecho literal do edital de onde veio.
+Lê editais de licitação de obras públicas com IA e mostra o que importa para quem vai
+participar: dados principais, checklist de habilitação, riscos à luz da Lei 14.133/2021 e
+se uma empresa está apta. **Cada informação cita a página e o trecho literal do edital**, e
+um clique abre o PDF com o trecho destacado.
 
-> **Estado atual:** Etapa 10 de 12 concluída. Pela interface web, o sistema busca editais no
-> PNCP ou recebe um PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com
-> fundamentação na Lei 14.133/2021 e compara as exigências de habilitação com o perfil de
-> uma empresa. Clicar numa citação abre o PDF na página e destaca o trecho. A avaliação
-> contra um gabarito anotado à mão está pronta (`just eval`); os números dependem do
-> gabarito completo.
+[![CI](https://github.com/BiancaVolpato/edital-claro/actions/workflows/ci.yml/badge.svg)](https://github.com/BiancaVolpato/edital-claro/actions/workflows/ci.yml)
+
+- **Demonstração pública:** três editais já analisados, sem espera e sem custo
+  (endereço publicado após o deploy; ver [docs/DEPLOY.md](docs/DEPLOY.md)).
+- **Vídeo de 3 minutos:** roteiro em [docs/ROTEIRO_VIDEO.md](docs/ROTEIRO_VIDEO.md).
 
 ## O problema
 
-Editais de obras públicas são PDFs longos, em linguagem jurídica, e cada órgão escreve de
-um jeito.
+Editais de obra são PDFs longos (de 28 a 88 páginas nos cinco exemplos deste repositório),
+em linguagem jurídica, e cada órgão escreve de um jeito. As exigências que eliminam uma empresa estão espalhadas pelo texto.
 
-- **Pequenas construtoras** perdem prazos, deixam passar exigências de habilitação e acabam
-  desclassificadas.
-- **Prefeituras pequenas** publicam editais com erros ou cláusulas restritivas, que geram
-  impugnações.
+**Um exemplo real.** O edital da Concorrência Eletrônica nº 4/2026 de Witmarsum (SC), que
+está em [data/samples](data/samples/README.md), tem 33 páginas. Para participar, a empresa
+precisa, entre outras coisas:
 
-## O que o sistema vai fazer
+- de atestados que somem **3.404 m²** de pavimentação, na seção de qualificação técnica;
+- de **patrimônio líquido de 10% do valor estimado** (R$ 3.809.907,22), ou seja,
+  R$ 380.990,72, conta que o edital deixa para a empresa;
+- de **certidões válidas na data da sessão**, que é 15/10/2026.
 
-1. Receber o PDF de um edital, por upload ou buscando no PNCP (Portal Nacional de
-   Contratações Públicas).
-2. Extrair os dados estruturados do edital.
-3. Gerar um checklist em que cada item cita a página e o trecho literal de origem.
-4. Apontar riscos e inconsistências, com fundamentação na Lei 14.133/2021.
-5. Comparar o edital com o perfil de uma empresa e dizer se ela está apta a participar e o
-   que falta.
+Uma construtora pequena com dois atestados de 2.100 m² e 1.500 m² e patrimônio de
+R$ 450 mil passa nos dois primeiros itens. Mas uma certidão estadual que vence em 10/10,
+cinco dias antes da sessão, a desclassifica. O Edital Claro aponta exatamente isso, com a
+página de cada exigência. É o teste de aceitação da etapa de aptidão
+(`backend/tests/test_eligibility_api.py`); a empresa é fictícia, o edital e os trechos são
+reais.
 
-## Andamento
+Quem sofre com isso:
 
-| Etapa | Entrega | Estado |
+- **pequenas construtoras**, que perdem prazos e são desclassificadas por um documento;
+- **prefeituras pequenas**, que publicam cláusulas restritivas e recebem impugnações.
+
+## Por que IA, e não só regras
+
+Regras sozinhas não dão conta, e IA sozinha não é confiável. O sistema usa cada uma onde ela
+é melhor:
+
+| Tarefa | Quem faz | Por quê |
 | --- | --- | --- |
-| 1 | Fundação do repositório | Concluída |
-| 2 | Ingestão de PDF | Concluída |
-| 3 | Extração estruturada com citações | Concluída |
-| 4 | Base de conhecimento da Lei 14.133 (RAG) | Concluída |
-| 5 | Análise de riscos | Concluída |
-| 6 | Perfil da empresa e aptidão | Concluída |
-| 7 | Integração com o PNCP | Concluída |
-| 8 | Frontend | Concluída |
-| 9 | Avaliação | Concluída (aguarda o gabarito) |
-| 10 | Segurança, governança e custos | Concluída |
-| 11 | Deploy | Concluída (aguarda as contas e os snapshots) |
-| 12 | Documentação e apresentação | Pendente |
+| Achar o valor estimado, as datas, as exigências | IA | Cada edital escreve diferente: "Valor previamente estimado em R$ 60.296,85" (Lauro Müller), "VALOR ESTIMADO GLOBAL DE CONTRATAÇÃO: R$ 3.809.907,22" (Witmarsum), "valor máximo admitido para a contratação é de R$ 22.549.875,04" (Florianópolis); regex quebraria a cada órgão |
+| Dizer se um atestado de "recapeamento em CBUQ" serve para "pavimentação asfáltica" | IA | É julgamento de equivalência técnica, não comparação de texto |
+| Apontar exigência que pode restringir a competição sem um número na lei (atestado de serviço específico demais, vedação sem justificativa) | IA, em 3 temas, com o artigo recuperado do texto oficial | Exige interpretação |
+| Conferir se o trecho citado existe na página | código | A defesa contra alucinação não pode depender do modelo |
+| Somar quantitativos, calcular percentuais, comparar datas | código | Contas são onde LLMs erram; a IA nem recebe as quantidades dos atestados |
+| Prazo mínimo entre publicação e abertura, teto de garantia, patrimônio acima de 10%, visita técnica obrigatória | código (8 regras) | A lei define em números; regra é exata e auditável |
 
-## Stack
+Tudo o que a IA responde passa por validação: valor sem trecho confirmado no documento vai
+para revisão, risco sem citação e sem artigo da lei é descartado, código de requisito
+inventado é ignorado.
 
-- **Backend:** Python 3.12, uv, FastAPI, Pydantic v2, SQLAlchemy, Alembic.
-- **Banco de dados:** PostgreSQL com pgvector.
-- **Frontend:** Next.js (App Router), TypeScript, Tailwind, shadcn/ui.
-- **Qualidade:** pytest, ruff, mypy, ESLint, GitHub Actions.
+## Telas
+
+<!-- As capturas são geradas da demonstração, depois dos snapshots reais (just demo-generate):
+     just screenshots
+     Depois de gerar, troque este comentário pelas imagens:
+![Página inicial](docs/img/01-inicio.png)
+![Campos extraídos com o PDF ao lado](docs/img/02-analise.png)
+![Clique numa citação: o PDF abre na página com o trecho destacado](docs/img/03-citacao.png)
+![Riscos com o artigo da lei](docs/img/04-riscos.png)
+![Checklist de habilitação](docs/img/05-checklist.png)
+![Aptidão da empresa](docs/img/06-aptidao.png)
+-->
+
+As capturas de tela saem da demonstração, com análises reais, por `just screenshots`
+(Playwright, usando o Chrome instalado). Elas entram aqui junto com os snapshots da demo,
+que dependem da chave da API ([data/demo](data/demo/README.md)).
+
+O fluxo na interface:
+
+1. **Início:** envie um PDF ou busque no PNCP e importe o edital.
+2. **Análise:** à esquerda, as abas Campos (com confiança e selo "Revisar"), Checklist e
+   Riscos; à direita, o PDF. Clicar em "p. 5" abre a página com o trecho destacado.
+3. **Aptidão:** escolha o perfil da empresa e veja exigência por exigência o que atende, o
+   que não atende e o que verificar, com o que falta e os prazos críticos.
+4. **Exportar:** relatório em Markdown ou PDF pela impressão do navegador.
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    U[Navegador] --> FE["Frontend Next.js<br/>proxy /api"]
+    FE --> API[API FastAPI]
+    API --> PNCP[(APIs do PNCP)]
+    API --> DB[("PostgreSQL<br/>+ pgvector")]
+    API --> LLM["Claude<br/>(saída estruturada)"]
+
+    subgraph P["Pipeline de análise"]
+        direction TB
+        I["Ingestão<br/>PyMuPDF, OCR só em páginas sem texto"] --> C["Trechos pela estrutura<br/>do edital (regras)"]
+        C --> E["Busca dos trechos relevantes<br/>embeddings locais e5"]
+        E --> X["Extração por grupo de campos<br/>6 chamadas"]
+        X --> V["Validação das citações<br/>(código)"]
+        V --> R["Riscos: 8 regras +<br/>3 temas com IA e RAG da lei"]
+        V --> A["Aptidão: regras +<br/>IA só para atestados"]
+    end
+    API -.-> I
+```
+
+- **Backend:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy, Alembic, uv.
+- **IA:** Claude pela API da Anthropic, atrás de uma interface `LLMProvider`; embeddings
+  locais (`multilingual-e5-base`); prompts versionados em arquivos com hash.
+- **Banco:** PostgreSQL com pgvector (a Lei 14.133 indexada por dispositivo, com busca
+  híbrida vetorial e textual).
+- **Frontend:** Next.js 16, TypeScript, Tailwind, shadcn/ui, react-pdf.
+- **Qualidade:** pytest, ruff, mypy, ESLint, GitHub Actions (testes em PostgreSQL real e
+  build das imagens Docker).
+
+## Resultados da avaliação
+
+| O que foi medido | Resultado | Onde |
+| --- | --- | --- |
+| Busca na Lei 14.133 (10 perguntas, recall@5) | **0,90** na busca híbrida (meta: 0,80); 0,90 só vetorial; 0,60 só texto | [eval/law_search/RESULTADOS.md](eval/law_search/RESULTADOS.md) |
+| Testes automatizados | 438 passando em PostgreSQL, incluindo testes de aceitação com trechos reais dos editais de exemplo | `just test` |
+| Cobertura de testes do backend | **96%** das linhas de `app/` | `just coverage` |
+| Extração de campos (precisão, recall, alucinação por campo, custo e latência por modelo) | **pendente**: o avaliador está pronto, faltam 15 a 20 editais anotados à mão | [eval/README.md](eval/README.md) |
+
+A avaliação da extração compara cada campo com um gabarito anotado por uma pessoa, mede
+quantos erros o selo "Revisar" pega e compara Opus, Sonnet, Haiku e a estratégia sem
+seleção de trechos, recomendando a variante mais barata que fique a até 2 pontos da
+melhor. Os números só valem com o gabarito revisado; por isso não estão aqui ainda.
+
+## Principais decisões
+
+Todas estão em [docs/DECISOES.md](docs/DECISOES.md), no formato contexto, opções, escolha
+e trade-off. As que mais definem o projeto:
+
+- **Citação validada como principal defesa contra alucinação** (ADR-012): todo valor cita
+  página e trecho, e o código procura o trecho no texto da página, exigindo que os números
+  da citação estejam lá.
+- **Extração por seções, não pelo documento inteiro** (ADR-013): cada grupo de campos
+  recebe só os trechos relevantes, o que reduz custo e distração do modelo.
+- **Riscos em duas camadas** (ADR-023, ADR-024): regras para o que a lei define em números;
+  IA para o interpretativo, sempre com trecho do edital e artigo recuperado do texto oficial.
+- **Aptidão decidida por código** (ADR-027, ADR-028): a IA só diz se o atestado é do mesmo
+  tipo de serviço; sem dado, o resultado é "verificar", nunca "atende".
+- **Defesas contra prompt injection** (ADR-015): texto do edital entre delimitadores com
+  código aleatório, saída presa a esquema e validação depois da resposta.
+- **Limite de gasto por reserva do pior caso** (ADR-036) e **rate limit** (ADR-037).
+- **Avaliação por gabarito anotado** (ADR-035).
+- **Demo com snapshots de análises reais** (ADR-039) e **hospedagem gratuita** (ADR-041).
+
+Governança, LGPD, riscos de alucinação e trilha de auditoria: [docs/GOVERNANCA.md](docs/GOVERNANCA.md).
+
+## Limitações e próximos passos
+
+**Limitações conhecidas**
+
+- Os números da extração ainda não foram medidos contra o gabarito (ver acima).
+- PDFs escaneados dependem do OCR, que pode trocar letras e números.
+- Anexos em arquivos separados (planilhas, projetos, ZIPs) não são lidos.
+- A base legal é só a Lei 14.133/2021, sem decretos, jurisprudência do TCU ou normas locais.
+- A aptidão reconhece exigências por palavras-chave e não confere os documentos da empresa.
+- Não há login: numa instalação pública, todos veem perfis e análises.
+- Desenvolvido com cinco editais de Santa Catarina (pavimentação e drenagem); outros tipos
+  de obra e de órgão podem escrever de formas que o sistema ainda não viu.
+
+**Próximos passos**
+
+1. Anotar o gabarito de 15 a 20 editais, rodar `just eval` e escolher o modelo pelos números.
+2. Ler anexos (planilha orçamentária, projeto básico) para conferir quantitativos.
+3. Incluir jurisprudência do TCU e decretos na base de leis.
+4. Login e perfis por empresa, para uso real com dados de empresas.
+5. Alertas: acompanhar o PNCP e avisar quando sair um edital compatível com o perfil.
 
 ## Como rodar
 
@@ -101,260 +216,17 @@ just dev-frontend
 ```
 
 Sem um PostgreSQL rodando, a API sobe normalmente e o `/health` informa
-`"database": "unavailable"`.
+`"database": "unavailable"`. Para analisar editais, coloque a `ANTHROPIC_API_KEY` no `.env`.
 
-## Usar pela interface
+Como usar cada funcionalidade, pela interface e pela API: [docs/GUIA.md](docs/GUIA.md).
 
-Com backend e frontend no ar, abra <http://localhost:3000>. Todo o fluxo funciona pelo
-navegador:
+## Demonstração pública e deploy
 
-1. **Início:** envie o PDF de um edital ou busque no PNCP (período, UF, município e palavras
-   do objeto) e clique em "Importar edital".
-2. **Documento:** acompanhe a leitura do PDF e clique em "Analisar com IA" (precisa da chave
-   da API no `.env`).
-3. **Análise:** a barra mostra o andamento. Ao terminar, a tela tem duas colunas:
-   - à esquerda, as abas Campos (com a confiança de cada um; os de baixa confiança aparecem
-     como "Revisar"), Checklist de habilitação e Riscos (para a empresa ou para o órgão);
-   - à direita, o PDF do edital. Clicar numa citação ("p. 5") abre a página e destaca o
-     trecho.
-   - "Exportar Markdown" baixa o relatório; "Imprimir ou salvar PDF" usa a impressão do
-     navegador.
-4. **Aptidão:** escolha um perfil de empresa e veja, exigência por exigência, o que atende,
-   o que não atende e o que verificar, com o que falta e os prazos críticos.
-5. **Perfis de empresa:** cadastre porte, CNAEs, capital, patrimônio, registro no conselho,
-   certidões e atestados.
-6. **Sobre e limitações:** o que a ferramenta faz e o que não faz.
-
-O navegador fala só com o frontend, que repassa as chamadas para a API (`/api/...`). O
-endereço da API vem de `API_URL`.
-
-## Enviar um edital
-
-Com tudo no ar pelo Docker (`just dev`), envie um dos editais de exemplo:
-
-```bash
-curl -F "file=@data/samples/lauro_muller_cc_233_2026.pdf" http://localhost:8000/documents
-```
-
-A resposta traz o `id` do documento. O processamento roda em segundo plano; consulte o
-resultado trocando `ID` pelo valor recebido:
-
-| Endereço | O que retorna |
-| --- | --- |
-| `GET /documents/ID` | status (`pending`, `processing`, `ready`, `failed`), metadados e resumo das páginas |
-| `GET /documents/ID/pages/4` | texto normalizado da página 4 |
-| `GET /documents/ID/chunks` | trechos em ordem de leitura, com título, tipo e páginas |
-| `GET /documents/ID/file` | o PDF original |
-
-Os mesmos endpoints podem ser testados pelo navegador em <http://localhost:8000/docs>.
-A origem dos editais de exemplo está em [data/samples/README.md](data/samples/README.md).
-
-Páginas escaneadas passam por OCR (Tesseract). A imagem Docker já traz o Tesseract; fora
-do Docker, sem ele instalado, essas páginas ficam sem texto e o documento registra um aviso.
-
-## Buscar e importar editais do PNCP
-
-O sistema busca contratações publicadas no PNCP (Portal Nacional de Contratações Públicas)
-e importa o edital direto de lá, sem precisar baixar e enviar o PDF.
-
-Buscar obras de pavimentação publicadas em SC entre 1º e 10 de novembro:
-
-```
-http://localhost:8000/pncp/search?data_inicial=2026-11-01&data_final=2026-11-10&uf=SC&q=pavimentação
-```
-
-| Parâmetro | Significado |
-| --- | --- |
-| `data_inicial`, `data_final` | período de publicação no PNCP (até 365 dias) |
-| `uf` | sigla da UF |
-| `municipio` ou `codigo_ibge` | nome do município, ou seu código IBGE de 7 dígitos |
-| `modalidade` | código de modalidade do PNCP; pode repetir. Padrão: 4 e 5 (concorrências) |
-| `q` | palavras que devem aparecer no objeto, sem diferenciar acentos |
-| `limite` | quantos resultados devolver (padrão 50) |
-
-Cada resultado traz o número de controle PNCP (ex.: `82939422000191-1-000153/2026`), o
-órgão, o município, o objeto, o valor estimado e o período de propostas. Para importar:
-
-```bash
-curl -H "Content-Type: application/json" -d '{"numero_controle": "82939422000191-1-000153/2026"}' http://localhost:8000/pncp/import
-```
-
-A importação baixa o arquivo do tipo Edital da contratação (ou outro, com
-`"sequencial_documento": N`) e o processa como um upload. A resposta traz o `id` do
-documento; quando ele estiver `ready`, inicie a análise com `POST /documents/ID/analyze`
-(seção seguinte). Importar de novo a mesma contratação não baixa o arquivo outra vez.
-
-A API do PNCP não busca por texto, então o sistema lê as páginas do período e filtra o
-objeto aqui. As respostas ficam guardadas por 1 hora em `data/cache/pncp`, e há uma pausa
-de 1 segundo entre requisições ao PNCP. Arquivos ZIP não são abertos; nesse caso, baixe-os
-no PNCP e envie os PDFs pelo upload.
-
-## Analisar um edital
-
-A análise chama a API da Anthropic, então precisa de uma chave e tem custo. Coloque a
-chave no arquivo `.env` da raiz:
-
-```
-ANTHROPIC_API_KEY=sua-chave
-```
-
-**Sem Docker**, direto pela linha de comando (não precisa de banco de dados):
-
-```bash
-just analyze ../data/samples/lauro_muller_cc_233_2026.pdf
-```
-
-O comando mostra cada campo com valor, confiança e páginas citadas, os riscos
-encontrados e, no fim, o total de citações por estado, os tokens e o custo estimado. Na
-primeira execução ele baixa o modelo de embeddings (cerca de 1 GB).
-
-Para rodar todos os testes com PostgreSQL, use um banco vazio só para testes: a suíte
-apaga documentos e o índice da lei ao terminar, e por isso se recusa a rodar num banco
-que já tenha dados.
-
-```bash
-RUN_DB_TESTS=1 DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/edital_test just test
-```
-
-**Com Docker**, pela API: depois de enviar o edital (seção anterior), inicie a análise e
-consulte o resultado:
-
-| Endereço | O que faz |
-| --- | --- |
-| `POST /documents/ID/analyze` | inicia a análise em segundo plano e devolve o `id` dela |
-| `GET /analyses/ID_DA_ANALISE` | status, progresso e, ao final, campos, citações, tokens e custo |
-| `GET /analyses` | as análises mais recentes (filtro opcional `document_id`) |
-| `GET /analyses/ID_DA_ANALISE/audit` | a trilha de auditoria: prompts, modelos, chamadas, custo e limite |
-| `GET /analyses/ID_DA_ANALISE/report.md` | o relatório em Markdown (`audience=licitante` ou `orgao`) |
-
-Cada campo extraído traz o valor, as citações (página e trecho literal), a confiança e
-um indicador de revisão. Cada citação é conferida contra o texto da página e recebe um
-estado:
-
-| Estado | Significado |
-| --- | --- |
-| `valid` | o trecho está na página indicada |
-| `wrong_page` | o trecho existe, mas em outra página (a página é corrigida) |
-| `not_found` | o trecho não está no documento; o campo é marcado para revisão |
-| `too_short` | trecho curto demais para comprovar algo; o campo é marcado para revisão |
-
-## Riscos do edital
-
-A análise aponta riscos em duas camadas:
-
-- **Regras**, para o que a lei define em números ou datas: prazo mínimo entre a
-  publicação e a abertura, prazo de impugnação, limites de garantia de proposta e
-  contratual, capital ou patrimônio mínimo, visita técnica obrigatória, vedação a
-  consórcio e datas de abertura divergentes.
-- **IA com a lei como referência**, para o que exige interpretação: exigências de
-  qualificação técnica ou econômica possivelmente restritivas e outras restrições à
-  competição. Para cada tema, o sistema busca os artigos pertinentes da Lei 14.133 e só
-  aceita riscos que citem esses artigos.
-
-Todo risco traz o trecho do edital (conferido contra o texto da página), o artigo da lei
-com o texto oficial, a severidade (baixa, média, alta) e a origem (regra ou IA). Achados
-da IA sem trecho comprovado ou sem artigo recuperado são descartados e listados à parte.
-
-| Endereço | O que retorna |
-| --- | --- |
-| `GET /analyses/ID` | o resultado completo, com `risks.risks`, `risks.discarded` e `risks.warnings` |
-| `GET /analyses/ID/risks?audience=licitante` | os riscos com a orientação para a empresa licitante |
-| `GET /analyses/ID/risks?audience=orgao` | os riscos com o alerta para o órgão ("isto pode gerar impugnação") |
-
-Pela linha de comando, sem banco, com vários editais de uma vez:
-
-```bash
-just analyze ../data/samples/*.pdf
-```
-
-Ao final, o comando confere se todo risco de todos os editais tem citação e artigo válidos.
-
-## Verificar a aptidão de uma empresa
-
-Com uma análise concluída, cadastre o perfil da empresa e compare-o com as exigências de
-habilitação do edital. Há um perfil fictício pronto em
-[data/profiles/construtora_exemplo.json](data/profiles/construtora_exemplo.json).
-
-```bash
-curl -H "Content-Type: application/json" -d @data/profiles/construtora_exemplo.json http://localhost:8000/profiles
-```
-
-```bash
-curl -H "Content-Type: application/json" -d '{"profile_id": "ID_DO_PERFIL"}' http://localhost:8000/analyses/ID_DA_ANALISE/eligibility
-```
-
-| Endereço | O que faz |
-| --- | --- |
-| `POST /profiles` | cadastra um perfil |
-| `GET /profiles` e `GET /profiles/ID` | lista os perfis ou mostra um |
-| `PUT /profiles/ID` | substitui o perfil |
-| `DELETE /profiles/ID` | apaga o perfil (as verificações já feitas ficam guardadas) |
-| `POST /analyses/ID/eligibility` | compara o perfil com o edital e devolve o relatório |
-| `GET /eligibility/ID` e `GET /eligibility/ID/report.md` | uma verificação já feita, em JSON ou Markdown |
-
-O perfil traz porte (ME, EPP ou demais), CNAEs, capital social, patrimônio líquido,
-atestados técnicos (com os serviços, quantidades e unidades), certidões com validade e
-registro no CREA ou CAU.
-
-O relatório tem um resultado para cada exigência extraída do edital, com o trecho e a
-página de origem:
-
-| Resultado | Significado |
-| --- | --- |
-| `atende` | o perfil cumpre a exigência |
-| `nao_atende` | o perfil não cumpre (por exemplo, certidão que vence antes da abertura) |
-| `nao_verificavel` | o perfil não tem o dado, ou a exigência não pôde ser lida; conferir à mão |
-
-O resumo traz o veredito (`apto`, `apto_com_ressalvas` ou `inapto`), o que falta e os prazos
-críticos: abertura, impugnação, esclarecimentos e certidões a renovar.
-
-Datas, valores e quantidades são comparados por código. A IA só diz quais atestados são do
-mesmo tipo de serviço que a exigência, e nem vê as quantidades executadas: a soma e a
-comparação com o mínimo são feitas depois, por código. Sem chave da API, a verificação roda
-do mesmo jeito e só os atestados ficam como `nao_verificavel`.
-
-## Avaliação da extração
-
-A extração é medida contra um gabarito anotado à mão (`eval/golden/`, um JSON por edital),
-em quatro variantes: três modelos com extração por seções e um com extração direta do
-documento. O relatório traz acurácia por campo, precisão e recall das exigências de
-habilitação, taxa de citações válidas, custo e tempo por edital, os piores casos e uma
-análise de erros.
-
-| Indicador | Resultado |
-| --- | --- |
-| Acurácia dos campos | a medir |
-| Exigências de habilitação (precisão / recall) | a medir |
-| Citações válidas | a medir |
-| Custo e tempo médios por edital | a medir |
-
-Os números entram aqui depois da primeira rodada com o gabarito completo (15 a 20 editais).
-Como anotar: [eval/ANOTACAO.md](eval/ANOTACAO.md). Como rodar e o que cada número significa:
-[eval/README.md](eval/README.md).
-
-## Buscar na Lei 14.133/2021
-
-A lei está dividida em 1.410 dispositivos (artigos, parágrafos, incisos e alíneas), cada
-um com seu identificador ("Art. 67, § 1º") e o capítulo a que pertence. A busca combina
-semelhança de sentido (embeddings) com correspondência de termos.
-
-Com o Docker no ar, a lei já é indexada na subida do backend. Consulte pelo navegador:
-
-```
-http://localhost:8000/law/search?q=prazo para impugnar o edital
-```
-
-| Parâmetro | Significado |
-| --- | --- |
-| `q` | a pergunta ou o tema |
-| `k` | quantos resultados (padrão 5, máximo 20) |
-| `mode` | `hybrid` (padrão), `vector` ou `lexical` |
-
-Em 10 perguntas de teste, o artigo esperado aparece entre os 5 primeiros resultados em 9
-(recall@5 de 0,90). O método, a evolução do número e as limitações estão em
-[eval/law_search/README.md](eval/law_search/README.md), e os resultados de cada pergunta
-em [eval/law_search/RESULTADOS.md](eval/law_search/RESULTADOS.md). A origem do texto da
-lei está em [data/law/README.md](data/law/README.md).
+A demo pública roda com `DEMO_MODE=true`: mostra três editais já analisados pela IA, sem
+espera nem custo, e recusa envio de PDF, importação e novas análises. A hospedagem
+recomendada é Render (backend, imagem Docker leve), Neon (Postgres) e Vercel (frontend),
+todos no plano gratuito. A comparação das opções, o passo a passo e a operação (seed,
+reset, atualizar as análises) estão em [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Comandos
 
@@ -363,6 +235,7 @@ lei está em [data/law/README.md](data/law/README.md).
 | `just dev` | Sobe Postgres, backend e frontend com Docker |
 | `just dev-backend` / `just dev-frontend` | Sobe cada parte localmente, com recarga automática |
 | `just test` | Roda os testes do backend (pytest); os que precisam de PostgreSQL são pulados |
+| `just coverage` | Roda os testes com o relatório de cobertura |
 | `just lint` | Roda ruff, mypy, ESLint e o type-check do TypeScript |
 | `just fmt` | Formata o código do backend |
 | `just migrate` | Aplica as migrações do banco |
@@ -373,6 +246,7 @@ lei está em [data/law/README.md](data/law/README.md).
 | `just eval-check` | Confere o gabarito anotado, sem custo |
 | `just demo-seed` / `just demo-reset` | Carrega os snapshots da demo no banco / apaga os dados e carrega de novo |
 | `just demo-generate` | Analisa os editais da demo com o LLM real e grava os snapshots (tem custo) |
+| `just screenshots` | Gera as capturas de tela do README a partir da demo rodando em `localhost:3000` |
 
 ## Estrutura
 
@@ -384,33 +258,16 @@ data/       Editais de exemplo e caches locais
 docs/       Decisões de arquitetura e guias
 ```
 
-## Demonstração pública e deploy
+## Documentação
 
-A demo pública roda com `DEMO_MODE=true`: mostra três editais já analisados pela IA, sem
-espera nem custo, e recusa envio de PDF, importação e novas análises. A hospedagem
-recomendada é Render (backend, imagem Docker leve), Neon (Postgres) e Vercel (frontend),
-todos no plano gratuito. A comparação das opções, o passo a passo e a operação (seed,
-reset, atualizar as análises) estão em [docs/DEPLOY.md](docs/DEPLOY.md).
-
-## Segurança, governança e custos
-
-O que o sistema faz com os dados, onde a decisão continua humana, os riscos de erro da IA e
-como são reduzidos estão em [docs/GOVERNANCA.md](docs/GOVERNANCA.md). Em resumo:
-
-- **Dados:** editais e lei são públicos; o sistema não precisa de dados de pessoas físicas.
-- **Limite de gasto:** US$ 3,00 por análise e US$ 0,50 por verificação de aptidão
-  (`ANALYSIS_MAX_COST_USD`, `ELIGIBILITY_MAX_COST_USD`). Uma chamada que pudesse passar do
-  limite não é feita.
-- **Rate limit por IP:** 120 requisições por minuto e 30 por hora nas rotas que custam
-  dinheiro ou consultam o PNCP (resposta 429).
-- **Upload:** só PDF, até 50 MB e 300 páginas, com o nome do arquivo limpo.
-- **Auditoria:** `GET /analyses/ID/audit` mostra o documento (hash e origem), as versões e
-  os hashes dos prompts, os modelos e cada chamada ao LLM com tokens e custo.
-
-## Decisões de arquitetura
-
-As decisões relevantes ficam registradas em [docs/DECISOES.md](docs/DECISOES.md), com
-contexto, opções consideradas, escolha e trade-off.
+| Documento | Conteúdo |
+| --- | --- |
+| [docs/GUIA.md](docs/GUIA.md) | Uso de cada funcionalidade, pela interface e pela API |
+| [docs/DECISOES.md](docs/DECISOES.md) | Registro de decisões (ADRs) |
+| [docs/GOVERNANCA.md](docs/GOVERNANCA.md) | Dados, LGPD, riscos de alucinação, prompt injection, custos e auditoria |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Comparação de hospedagens e passo a passo do deploy da demo |
+| [docs/ROTEIRO_VIDEO.md](docs/ROTEIRO_VIDEO.md) | Roteiro do vídeo de apresentação |
+| [eval/README.md](eval/README.md) | Como a extração é avaliada |
 
 ## Aviso
 

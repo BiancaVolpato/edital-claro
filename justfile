@@ -42,6 +42,16 @@ migrate:
 test:
     uv run pytest
 
+# Run the backend tests with a coverage report
+[working-directory('backend')]
+coverage:
+    uv run pytest --cov=app --cov-report=term-missing:skip-covered
+
+# Capture the README screenshots from the app running at localhost:3000 (the demo)
+[working-directory('frontend')]
+screenshots:
+    npm run screenshots
+
 # Lint and type-check backend and frontend
 lint: lint-backend lint-frontend
 

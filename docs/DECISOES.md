@@ -849,3 +849,21 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
   Postgres para conferir que responde pelo frontend.
 - **Trade-off:** Um argumento de build a mais e um Dockerfile com um `if`. Duas imagens
   separadas seriam mais explícitas, mas duplicariam quase tudo.
+
+## ADR-043: Revisão final: cobertura com piso no CI e README voltado à apresentação
+
+- **Etapa:** 12
+- **Contexto:** No fechamento do projeto, o README tinha crescido com o guia de cada
+  funcionalidade e a cobertura de testes nunca tinha sido medida.
+- **Escolha:** Cobertura medida com `pytest-cov` (`just coverage`): 96% das linhas de
+  `app/` com PostgreSQL. O CI falha abaixo de 90%, uma folga para mudanças pequenas sem
+  deixar a cobertura cair sem ninguém ver. O README passou a apresentar o projeto
+  (problema, por que IA, arquitetura, resultados, decisões, limitações) e o guia de uso foi
+  para `docs/GUIA.md`. A revisão de código removeu uma configuração que nada lia
+  (`ENVIRONMENT`) e uma função sem uso no frontend. As capturas de tela saem de um script
+  (`just screenshots`, com Playwright e o navegador instalado) rodando sobre a demo, para
+  mostrarem análises reais e poderem ser refeitas quando a interface mudar.
+- **Trade-off:** Um piso de cobertura pode incentivar testes que só passam pelas linhas;
+  por isso ele fica abaixo do valor atual e não é meta. As telas do README dependem dos
+  snapshots reais da demo e ficam de fora até eles existirem, em vez de mostrar dados de
+  teste como se fossem resultado.

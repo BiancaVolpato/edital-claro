@@ -148,7 +148,3 @@ export function formatValue(name: string, value: unknown): string {
   }
   return String(value);
 }
-
-export function percent(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}

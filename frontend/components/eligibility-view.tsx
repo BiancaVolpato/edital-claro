@@ -11,7 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { downloadFile, fetcher, postJson } from "@/lib/client";
-import { brDate, isConfirmed, STATUS_LABELS, VERDICT_LABELS } from "@/lib/format";
+import { brDate, brDateTime, isConfirmed, STATUS_LABELS, VERDICT_LABELS } from "@/lib/format";
 import type { CompanyProfile, EligibilityCheck, RequirementResult, RequirementStatus } from "@/lib/types";
 import { cn } from "cn";
 
@@ -192,6 +192,10 @@ export function EligibilityView({ params }: { params: Promise<{ id: string }> })
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [check, setCheck] = useState<EligibilityCheck | null>(null);
+  // Checks made before (e.g. the one seeded in the demo, made with the AI): the
+  // newest is shown until a new check is run.
+  const { data: stored } = useSWR<EligibilityCheck[]>(`/analyses/${id}/eligibility`, fetcher);
+  const shown = check ?? stored?.[0] ?? null;
 
   async function run(event: React.FormEvent) {
     event.preventDefault();
@@ -268,7 +272,14 @@ export function EligibilityView({ params }: { params: Promise<{ id: string }> })
         </Alert>
       )}
       {running && <p role="status">Comparando o perfil com as exigências…</p>}
-      {check && <Report analysisId={id} check={check} />}
+      {!check && shown && (
+        <p className="text-sm text-muted-foreground">
+          Última verificação salva: {brDateTime(shown.created_at)}, perfil{" "}
+          {shown.profile_snapshot.name},{" "}
+          {shown.llm_model ? `comparação de atestados com IA (${shown.llm_model})` : "sem a etapa de IA"}.
+        </p>
+      )}
+      {shown && <Report key={shown.id} analysisId={id} check={shown} />}
     </main>
   );
 }

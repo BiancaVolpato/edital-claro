@@ -9,6 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.profiles import get_profile_or_404
@@ -128,6 +129,19 @@ def check_eligibility(
         },
     )
     return _to_read(check)
+
+
+@router.get("/analyses/{analysis_id}/eligibility")
+def list_eligibility_checks(analysis_id: uuid.UUID, session: SessionDep) -> list[EligibilityRead]:
+    """Checks already made on this analysis, newest first."""
+    if session.get(Analysis, analysis_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Análise não encontrada.")
+    checks = session.scalars(
+        select(EligibilityCheck)
+        .where(EligibilityCheck.analysis_id == analysis_id)
+        .order_by(EligibilityCheck.created_at.desc())
+    ).all()
+    return [_to_read(check) for check in checks]
 
 
 @router.get("/eligibility/{check_id}")

@@ -97,8 +97,11 @@ def test_reset_and_seed_bring_back_the_same_results(
     with db_engine.connect() as connection:
         check = connection.execute(select(EligibilityCheck)).one()
     assert check.profile_id is not None
-    stored = client.get(f"/eligibility/{check.id}").json()
+    [stored] = client.get(f"/analyses/{summary['id']}/eligibility").json()
+    assert stored["id"] == str(check.id)
     assert stored["report"] == snapshot["eligibility"][0]["report"]
+    missing = "/analyses/00000000-0000-0000-0000-000000000000/eligibility"
+    assert client.get(missing).status_code == 404
 
 
 def test_seeding_twice_changes_nothing(

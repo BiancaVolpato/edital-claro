@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Edital Claro"
-    environment: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # Local development default; real deployments must override it via DATABASE_URL.

@@ -21,7 +21,6 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-edital}:${POSTGRES_PASSWORD:-edital}@db:5432/${POSTGRES_DB:-edital_claro}
       STORAGE_DIR: /data/uploads

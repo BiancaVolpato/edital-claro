@@ -19,8 +19,6 @@ services:
         value: demo
       - key: DEMO_MODE
         value: "true"
-      - key: ENVIRONMENT
-        value: production
       - key: LOG_LEVEL
         value: INFO
       # Neon connection string (postgresql://...?sslmode=require). Asked on creation.

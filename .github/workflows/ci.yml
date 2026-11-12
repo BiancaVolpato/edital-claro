@@ -34,7 +34,6 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      ENVIRONMENT: test
       DATABASE_URL: postgresql+psycopg://edital:edital@localhost:5432/edital_claro
       # Enables the tests that apply migrations to the real Postgres service above.
       RUN_DB_TESTS: "1"
@@ -56,8 +55,8 @@ jobs:
         run: uv run ruff format --check .
       - name: Type-check
         run: uv run mypy
-      - name: Test
-        run: uv run pytest
+      - name: Test (with coverage; fails below 90%)
+        run: uv run pytest --cov=app --cov-report=term --cov-fail-under=90
 
   frontend:
     name: Frontend (lint, types, build)
