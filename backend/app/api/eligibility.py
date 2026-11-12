@@ -3,10 +3,11 @@
 import datetime as dt
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from app.eligibility.service import evaluate_eligibility
 from app.extraction.schemas import EditalExtraction
 from app.llm.base import LLMNotConfiguredError, LLMProvider
 from app.llm.factory import get_llm_provider
+from app.reports.markdown import render_eligibility
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["eligibility"])
@@ -57,6 +59,30 @@ class EligibilityRead(BaseModel):
     output_tokens: int
     cost_usd: float | None
     created_at: datetime
+
+
+def _to_read(check: EligibilityCheck) -> EligibilityRead:
+    return EligibilityRead(
+        id=check.id,
+        analysis_id=check.analysis_id,
+        profile_id=check.profile_id,
+        profile_snapshot=CompanyProfileData.model_validate(check.profile_snapshot),
+        report=EligibilityReport.model_validate(check.report),
+        prompt_version=check.prompt_version,
+        prompt_hash=check.prompt_hash,
+        llm_model=check.llm_model,
+        input_tokens=check.input_tokens,
+        output_tokens=check.output_tokens,
+        cost_usd=check.cost_usd,
+        created_at=check.created_at,
+    )
+
+
+def _get_check_or_404(session: Session, check_id: uuid.UUID) -> EligibilityCheck:
+    check = session.get(EligibilityCheck, check_id)
+    if check is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Verificação de aptidão não encontrada.")
+    return check
 
 
 @router.post("/analyses/{analysis_id}/eligibility", status_code=status.HTTP_201_CREATED)
@@ -119,17 +145,28 @@ def check_eligibility(
             "cost_usd": check.cost_usd,
         },
     )
-    return EligibilityRead(
-        id=check.id,
-        analysis_id=check.analysis_id,
-        profile_id=check.profile_id,
-        profile_snapshot=profile,
-        report=outcome.report,
-        prompt_version=check.prompt_version,
-        prompt_hash=check.prompt_hash,
-        llm_model=check.llm_model,
-        input_tokens=check.input_tokens,
-        output_tokens=check.output_tokens,
-        cost_usd=check.cost_usd,
-        created_at=check.created_at,
+    return _to_read(check)
+
+
+@router.get("/eligibility/{check_id}")
+def get_eligibility(check_id: uuid.UUID, session: SessionDep) -> EligibilityRead:
+    """A stored eligibility check, as it was produced."""
+    return _to_read(_get_check_or_404(session, check_id))
+
+
+@router.get("/eligibility/{check_id}/report.md", response_class=PlainTextResponse)
+def export_eligibility(check_id: uuid.UUID, session: SessionDep) -> PlainTextResponse:
+    """The eligibility report as a Markdown file."""
+    check = _get_check_or_404(session, check_id)
+    analysis = session.get(Analysis, check.analysis_id)
+    content = render_eligibility(
+        filename=analysis.document.filename if analysis else "edital",
+        company=str(check.profile_snapshot.get("name", "empresa")),
+        report=EligibilityReport.model_validate(check.report),
+        generated_at=datetime.now(UTC),
+    )
+    return PlainTextResponse(
+        content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="aptidao-{check.id}.md"'},
     )

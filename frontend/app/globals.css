@@ -128,3 +128,16 @@
     @apply font-sans;
   }
 }
+/* Quoted text highlighted in the PDF viewer (the text layer itself is transparent). */
+.react-pdf__Page__textContent mark {
+  background: rgb(250 204 21 / 0.45);
+  color: transparent;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgb(234 179 8 / 0.6);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

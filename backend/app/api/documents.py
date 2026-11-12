@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,7 +13,12 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import Chunk, Document, DocumentSource, DocumentStatus, Page
 from app.db.session import get_session
-from app.ingestion.service import NotAPdfError, process_document, register_document
+from app.ingestion.service import (
+    NotAPdfError,
+    file_path_for,
+    process_document,
+    register_document,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -179,3 +185,20 @@ def list_chunks(document_id: uuid.UUID, session: SessionDep) -> list[ChunkRead]:
         select(Chunk).where(Chunk.document_id == document_id).order_by(Chunk.index)
     ).all()
     return [ChunkRead.model_validate(chunk) for chunk in chunks]
+
+
+@router.get("/{document_id}/file", response_class=FileResponse)
+def get_document_file(document_id: uuid.UUID, session: SessionDep) -> FileResponse:
+    """The original PDF, for the viewer next to the analysis."""
+    document = _get_document_or_404(session, document_id)
+    path = file_path_for(document.file_hash)
+    if not path.is_file():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "O arquivo deste documento não está mais disponível."
+        )
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=document.filename,
+        content_disposition_type="inline",
+    )

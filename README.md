@@ -3,10 +3,11 @@
 Análise de editais de licitação de obras públicas com IA, em que cada informação extraída
 cita a página e o trecho literal do edital de onde veio.
 
-> **Estado atual:** Etapa 7 de 12 concluída. O sistema busca editais no PNCP ou recebe um
-> PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com fundamentação na
-> Lei 14.133/2021 e compara as exigências de habilitação com o perfil de uma empresa.
-> Ainda não há interface para a análise (Etapa 8) nem números de qualidade (Etapa 9).
+> **Estado atual:** Etapa 8 de 12 concluída. Pela interface web, o sistema busca editais no
+> PNCP ou recebe um PDF, extrai 22 campos com IA conferindo cada citação, aponta riscos com
+> fundamentação na Lei 14.133/2021 e compara as exigências de habilitação com o perfil de
+> uma empresa. Clicar numa citação abre o PDF na página e destaca o trecho. Ainda não há
+> números de qualidade (Etapa 9).
 
 ## O problema
 
@@ -39,7 +40,7 @@ um jeito.
 | 5 | Análise de riscos | Concluída |
 | 6 | Perfil da empresa e aptidão | Concluída |
 | 7 | Integração com o PNCP | Concluída |
-| 8 | Frontend | Pendente |
+| 8 | Frontend | Concluída |
 | 9 | Avaliação | Pendente |
 | 10 | Segurança, governança e custos | Pendente |
 | 11 | Deploy | Pendente |
@@ -95,6 +96,31 @@ just dev-frontend
 Sem um PostgreSQL rodando, a API sobe normalmente e o `/health` informa
 `"database": "unavailable"`.
 
+## Usar pela interface
+
+Com backend e frontend no ar, abra <http://localhost:3000>. Todo o fluxo funciona pelo
+navegador:
+
+1. **Início:** envie o PDF de um edital ou busque no PNCP (período, UF, município e palavras
+   do objeto) e clique em "Importar edital".
+2. **Documento:** acompanhe a leitura do PDF e clique em "Analisar com IA" (precisa da chave
+   da API no `.env`).
+3. **Análise:** a barra mostra o andamento. Ao terminar, a tela tem duas colunas:
+   - à esquerda, as abas Campos (com a confiança de cada um; os de baixa confiança aparecem
+     como "Revisar"), Checklist de habilitação e Riscos (para a empresa ou para o órgão);
+   - à direita, o PDF do edital. Clicar numa citação ("p. 5") abre a página e destaca o
+     trecho.
+   - "Exportar Markdown" baixa o relatório; "Imprimir ou salvar PDF" usa a impressão do
+     navegador.
+4. **Aptidão:** escolha um perfil de empresa e veja, exigência por exigência, o que atende,
+   o que não atende e o que verificar, com o que falta e os prazos críticos.
+5. **Perfis de empresa:** cadastre porte, CNAEs, capital, patrimônio, registro no conselho,
+   certidões e atestados.
+6. **Sobre e limitações:** o que a ferramenta faz e o que não faz.
+
+O navegador fala só com o frontend, que repassa as chamadas para a API (`/api/...`). O
+endereço da API vem de `API_URL`.
+
 ## Enviar um edital
 
 Com tudo no ar pelo Docker (`just dev`), envie um dos editais de exemplo:
@@ -111,6 +137,7 @@ resultado trocando `ID` pelo valor recebido:
 | `GET /documents/ID` | status (`pending`, `processing`, `ready`, `failed`), metadados e resumo das páginas |
 | `GET /documents/ID/pages/4` | texto normalizado da página 4 |
 | `GET /documents/ID/chunks` | trechos em ordem de leitura, com título, tipo e páginas |
+| `GET /documents/ID/file` | o PDF original |
 
 Os mesmos endpoints podem ser testados pelo navegador em <http://localhost:8000/docs>.
 A origem dos editais de exemplo está em [data/samples/README.md](data/samples/README.md).
@@ -189,6 +216,8 @@ consulte o resultado:
 | --- | --- |
 | `POST /documents/ID/analyze` | inicia a análise em segundo plano e devolve o `id` dela |
 | `GET /analyses/ID_DA_ANALISE` | status, progresso e, ao final, campos, citações, tokens e custo |
+| `GET /analyses` | as análises mais recentes (filtro opcional `document_id`) |
+| `GET /analyses/ID_DA_ANALISE/report.md` | o relatório em Markdown (`audience=licitante` ou `orgao`) |
 
 Cada campo extraído traz o valor, as citações (página e trecho literal), a confiança e
 um indicador de revisão. Cada citação é conferida contra o texto da página e recebe um
@@ -253,6 +282,7 @@ curl -H "Content-Type: application/json" -d '{"profile_id": "ID_DO_PERFIL"}' htt
 | `PUT /profiles/ID` | substitui o perfil |
 | `DELETE /profiles/ID` | apaga o perfil (as verificações já feitas ficam guardadas) |
 | `POST /analyses/ID/eligibility` | compara o perfil com o edital e devolve o relatório |
+| `GET /eligibility/ID` e `GET /eligibility/ID/report.md` | uma verificação já feita, em JSON ou Markdown |
 
 O perfil traz porte (ME, EPP ou demais), CNAEs, capital social, patrimônio líquido,
 atestados técnicos (com os serviços, quantidades e unidades), certidões com validade e

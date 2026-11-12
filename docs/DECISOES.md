@@ -634,3 +634,52 @@ consideradas, escolha e trade-off. As decisões são numeradas e nunca apagadas;
 - **Trade-off:** Uma busca grande demora alguns segundos a mais por causa do intervalo. O
   cache pode mostrar uma contratação desatualizada por até 1 hora. Arquivos ZIP não são
   abertos: são recusados com uma mensagem para o usuário enviar os PDFs pelo upload.
+
+## ADR-032: Interface com componentes de cliente e um proxy para a API
+
+- **Etapa:** 8
+- **Contexto:** As telas são interativas: envio de arquivo, acompanhamento da análise (que
+  roda em segundo plano), visualizador de PDF e formulários. O frontend e a API rodam em
+  endereços diferentes (localhost:3000 e :8000; no Docker, `frontend` e `backend`).
+- **Opções:** (a) Server Components com Server Actions; (b) componentes de cliente chamando a
+  API pelo navegador, com CORS no backend; (c) componentes de cliente chamando uma rota do
+  próprio Next.js (`/api/...`) que repassa para a API.
+- **Escolha:** (c). A rota `app/api/[...path]/route.ts` repassa método, corpo (inclusive o
+  upload do PDF, em fluxo) e os cabeçalhos necessários para `API_URL`, lido a cada
+  requisição. As telas usam SWR para buscar dados e para consultar o andamento a cada 1,5 a
+  2 segundos enquanto o documento é lido ou a análise roda. As páginas são cascas
+  pré-renderizadas, com o conteúdo carregado no navegador.
+- **Trade-off:** Sem CORS e sem expor o endereço da API, e o mesmo build serve local, Docker e
+  produção. Cada chamada passa por um salto a mais. O conteúdo das análises não vem
+  renderizado do servidor, o que não importa para uma ferramenta de trabalho sem SEO.
+
+## ADR-033: Citação clicável com destaque no PDF original
+
+- **Etapa:** 8
+- **Contexto:** O diferencial do projeto é poder conferir cada informação no edital. A
+  citação traz a página e o trecho literal, mas o texto que o PDF.js extrai é dividido e
+  espaçado de forma diferente do texto normalizado do backend (quebras de linha, hifenização,
+  espaços).
+- **Escolha:** O visualizador (react-pdf, que usa o PDF.js) abre o PDF original servido por
+  `GET /documents/{id}/file`, vai à página citada e destaca os trechos da camada de texto que
+  contêm a citação. A comparação ignora espaços, pontuação, acentos e maiúsculas; se o trecho
+  inteiro não for achado, tenta o começo e o fim. Quando nada é achado, a página abre e um
+  aviso diz que o destaque não foi possível.
+- **Trade-off:** Destaca itens inteiros de texto, não só os caracteres exatos. Foi conferido
+  com o texto que o PDF.js extrai dos editais de exemplo: trechos de uma linha e de várias
+  linhas são destacados, e um trecho inventado não é. Páginas escaneadas só têm camada de
+  texto se o próprio PDF tiver; o OCR do backend não altera o arquivo, então nelas o destaque
+  não aparece.
+
+## ADR-034: Exportação em Markdown pelo backend e PDF pela impressão do navegador
+
+- **Etapa:** 8
+- **Contexto:** A especificação pede exportar o relatório em PDF ou Markdown.
+- **Escolha:** `GET /analyses/{id}/report.md` e `GET /eligibility/{id}/report.md` geram o
+  Markdown no backend, com cada valor acompanhado da página e do trecho de origem, e com o
+  aviso de que não substitui parecer jurídico. Para PDF, as telas têm estilo de impressão
+  (sem cabeçalho, botões e visualizador) e o botão "Imprimir ou salvar PDF" usa a impressão
+  do navegador.
+- **Trade-off:** O Markdown é testado no pytest e serve a qualquer cliente. Gerar PDF no
+  servidor exigiria uma biblioteca de renderização a mais; a impressão do navegador resolve
+  sem dependência, com layout que varia um pouco entre navegadores.
